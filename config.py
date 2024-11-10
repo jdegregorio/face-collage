@@ -3,7 +3,6 @@ import os
 # Google Photos API settings
 CLIENT_SECRETS_FILE = os.path.join('credentials', 'client_secrets.json')
 SCOPES = ['https://www.googleapis.com/auth/photoslibrary.readonly']
-ALBUM_ID = 'AKZP_rbWKGT7RWUaPbg2S8jKzLQSZpntyVdKnbKE0dx6GO_wORxtIXUbRciL-2D88tgGE-0gzJeH'
 
 # Image processing settings
 MIN_FACE_SIZE = 100          # Minimum face size in pixels to consider
@@ -13,7 +12,6 @@ MAX_PITCH = 45.0             # Maximum pitch angle to include (degrees)
 
 # Bounding box expansion settings
 INITIAL_BBOX_EXPANSION = 2  # Percentage to expand the initial bounding box
-LANDMARK_BBOX_MARGIN = 2    # Margin percentage around facial landmarks for final crop
 
 # Collage settings
 COLLAGE_WIDTH = 6000         # Width of the final collage image in pixels
@@ -31,4 +29,4 @@ COLLAGE_OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'final_collage.jpg')
 BATCH_SIZE = 30              # Number of photos to process in each batch
 
 # Logging settings
-LOG_LEVEL = 'INFO'           # Can be set to 'DEBUG' for more detailed logs
+LOG_LEVEL = 'ERROR'          # Set to 'ERROR' to reduce verbosity

@@ -4,7 +4,6 @@ from simple_term_menu import TerminalMenu
 import pandas as pd
 from tqdm import tqdm
 import sys
-from contextlib import contextmanager
 
 from utils.google_photos_api import (
     list_albums,
@@ -21,26 +20,15 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logs (0 = all, 1
 
 # Suppress absl logging from TensorFlow and Mediapipe
 try:
-    from absl import logging as absl_logging
-    absl_logging.set_verbosity(absl_logging.ERROR)
+    import absl.logging
+    absl.logging.set_verbosity(absl.logging.ERROR)
 except ImportError:
     pass  # absl not installed
 
-# Context manager to suppress STDERR temporarily
-@contextmanager
-def suppress_stderr():
-    with open(os.devnull, "w") as devnull:
-        old_stderr = sys.stderr
-        sys.stderr = devnull
-        try:
-            yield
-        finally:
-            sys.stderr = old_stderr
-
 def setup_logging():
     logging.basicConfig(
-        filename=PROGRESS_FILE,
-        level=logging.DEBUG,
+        filename='app.log',
+        level=logging.ERROR,  # Set to ERROR to reduce verbosity
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
@@ -102,15 +90,7 @@ def create_photo_index(index_file, album_id):
                 'creationTime': item.get('mediaMetadata', {}).get('creationTime'),
                 'width': item.get('mediaMetadata', {}).get('width'),
                 'height': item.get('mediaMetadata', {}).get('height'),
-                'photo_cameraMake': item.get('mediaMetadata', {}).get('photo', {}).get('cameraMake'),
-                'photo_cameraModel': item.get('mediaMetadata', {}).get('photo', {}).get('cameraModel'),
-                'photo_focalLength': item.get('mediaMetadata', {}).get('photo', {}).get('focalLength'),
-                'photo_apertureFNumber': item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber'),
-                'photo_isoEquivalent': item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent'),
-                'video_cameraMake': item.get('mediaMetadata', {}).get('video', {}).get('cameraMake'),
-                'video_cameraModel': item.get('mediaMetadata', {}).get('video', {}).get('cameraModel'),
-                'video_fps': item.get('mediaMetadata', {}).get('video', {}).get('fps'),
-                'video_status': item.get('mediaMetadata', {}).get('video', {}).get('status')
+                # ... other metadata fields
             })
 
     # Save index to CSV
@@ -155,25 +135,20 @@ def download_and_process_photos(index_file, processed_images_dir, batch_size=BAT
             continue
 
         images = []
-        with suppress_stderr():
-            for _, row in tqdm(batch_df.iterrows(), total=batch_df.shape[0], desc='Downloading images'):
-                media_item_id = row['id']
-                filename = row['filename']
-                temp_image_path = download_photo(media_item_id, f"temp_{filename}", processed_images_dir)
-                if temp_image_path:
-                    images.append((temp_image_path, filename))
+        for _, row in tqdm(batch_df.iterrows(), total=batch_df.shape[0], desc='Downloading images', file=sys.stdout):
+            media_item_id = row['id']
+            filename = row['filename']
+            temp_image_path = download_photo(media_item_id, f"temp_{filename}", processed_images_dir)
+            if temp_image_path:
+                images.append((temp_image_path, filename))
 
-        # Process images
         if images:
-            with suppress_stderr():
-                process_images_batch(images, processed_images_dir)
-            # Remove temporary images
+            process_images_batch(images, processed_images_dir)
             for temp_image_path, _ in images:
                 if os.path.exists(temp_image_path):
                     os.remove(temp_image_path)
         else:
             logging.info("No images to process in this batch.")
-
         processed_batches += 1
         if tracker:
             tracker.update_batches(processed_batches, total_batches)
