@@ -11,7 +11,7 @@ MAX_YAW = 45.0               # Maximum yaw angle to include (degrees)
 MAX_PITCH = 45.0             # Maximum pitch angle to include (degrees)
 
 # Bounding box expansion settings
-INITIAL_BBOX_EXPANSION = 1.8  # Percentage to expand the initial bounding box (e.g., 0.2 for 20%)
+INITIAL_BBOX_EXPANSION = 2   # Percentage to expand the initial bounding box (e.g., 0.2 for 20%)
 
 # Collage settings
 COLLAGE_WIDTH = 6000         # Width of the final collage image in pixels

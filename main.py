@@ -18,7 +18,8 @@ from utils.photo import Photo
 from config import *
 
 # Suppress TensorFlow and Mediapipe logs
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logs (0 = all, 1 = INFO, 2 = WARNING, 3 = ERROR)
+# Suppress TensorFlow logs (0 = all, 1 = INFO, 2 = WARNING, 3 = ERROR)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  
 
 # Suppress absl logging from TensorFlow and Mediapipe
 try:
@@ -126,6 +127,11 @@ def load_photos(file_path):
     else:
         return []
 
+def update_index_csv(photos, index_file):
+    df = pd.DataFrame([photo.to_dict() for photo in photos])
+    df.to_csv(index_file, index=False)
+    logging.info(f"Photo index updated and saved to {index_file}")
+
 def download_crop_resize_photos(photos):
     """
     Download, crop, and resize photos one by one.
@@ -164,6 +170,10 @@ def download_crop_resize_photos(photos):
                 photo.face_detection_status = 'failed'
                 photo.face_detection_error = 'Face detection failed'
                 logging.warning(f"Failed to process photo {photo.filename}")
+                # Proceed to delete the original image even if face detection fails
+                if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+                    os.remove(photo.original_image_path)
+                    photo.original_image_path = ''
                 continue  # Skip to next photo
 
         # Delete original image if configured
@@ -173,6 +183,7 @@ def download_crop_resize_photos(photos):
 
         # Save progress after each photo
         save_photos(photos, PHOTOS_FILE)
+        update_index_csv(photos, INDEX_FILE)
 
 def perform_head_pose_estimation(photos):
     """
@@ -204,8 +215,9 @@ def perform_head_pose_estimation(photos):
                 logging.warning(f"Failed to estimate head pose for photo {photo.filename}")
                 continue  # Skip to next photo
 
-        # Save progress after each photo
-        save_photos(photos, PHOTOS_FILE)
+            # Save progress after each photo
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
 
 def reset_project(tracker):
     """

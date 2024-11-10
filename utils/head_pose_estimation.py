@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import logging
+import math
 
 mp_face_mesh = mp.solutions.face_mesh
 
@@ -13,7 +14,7 @@ def estimate_head_pose(image_path):
     height, width, _ = image.shape
 
     # Camera internals
-    focal_length = width
+    focal_length = 1 * width  # Assuming focal length is width in pixels
     center = (width / 2, height / 2)
     camera_matrix = np.array(
         [[focal_length, 0, center[0]],
@@ -45,11 +46,11 @@ def estimate_head_pose(image_path):
         # 3D model points
         model_points = np.array([
             (0.0, 0.0, 0.0),             # Nose tip
-            (0.0, -110.0, -10.0),        # Chin
-            (-70.0, 70.0, -50.0),        # Left eye left corner
-            (70.0, 70.0, -50.0),         # Right eye right corner
-            (-60.0, -70.0, -50.0),       # Left mouth corner
-            (60.0, -70.0, -50.0)         # Right mouth corner
+            (0.0, -63.6, -12.5),         # Chin
+            (-43.3, 32.7, -26.0),        # Left eye left corner
+            (43.3, 32.7, -26.0),         # Right eye right corner
+            (-28.9, -28.9, -24.1),       # Left mouth corner
+            (28.9, -28.9, -24.1)         # Right mouth corner
         ])
 
         # Solve PnP
@@ -60,11 +61,19 @@ def estimate_head_pose(image_path):
             logging.debug(f"solvePnP failed for {image_path}.")
             return None, None, None
 
-        # Convert rotation vector to Euler angles
+        # Convert rotation vector to rotation matrix
         rotation_mat, _ = cv2.Rodrigues(rotation_vector)
-        angles, _, _, _, _, _ = cv2.RQDecomp3x3(rotation_mat)
-        yaw = angles[1] * 180.0 / np.pi
-        pitch = angles[0] * 180.0 / np.pi
-        roll = angles[2] * 180.0 / np.pi
+
+        # Compose projection matrix
+        proj_matrix = np.hstack((rotation_mat, translation_vector))
+
+        # Decompose projection matrix to get Euler angles
+        _, _, _, _, _, _, euler_angles = cv2.decomposeProjectionMatrix(proj_matrix)
+        pitch, yaw, roll = euler_angles.flatten()
+
+        # Convert to degrees
+        pitch = pitch
+        yaw = yaw
+        roll = roll
 
         return yaw, pitch, roll

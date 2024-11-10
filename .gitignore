@@ -180,6 +180,8 @@ credentials/*
 dev.py
 export.py
 project_export.txt
+prompt.txt
+face_rotation_test.py
 
 # And except .gitkeep files
 !.gitkeep
