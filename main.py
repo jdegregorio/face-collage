@@ -90,7 +90,15 @@ def create_photo_index(index_file, album_id):
                 'creationTime': item.get('mediaMetadata', {}).get('creationTime'),
                 'width': item.get('mediaMetadata', {}).get('width'),
                 'height': item.get('mediaMetadata', {}).get('height'),
-                # ... other metadata fields
+                'photo_cameraMake': item.get('mediaMetadata', {}).get('photo', {}).get('cameraMake'),
+                'photo_cameraModel': item.get('mediaMetadata', {}).get('photo', {}).get('cameraModel'),
+                'photo_focalLength': item.get('mediaMetadata', {}).get('photo', {}).get('focalLength'),
+                'photo_apertureFNumber': item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber'),
+                'photo_isoEquivalent': item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent'),
+                'video_cameraMake': item.get('mediaMetadata', {}).get('video', {}).get('cameraMake'),
+                'video_cameraModel': item.get('mediaMetadata', {}).get('video', {}).get('cameraModel'),
+                'video_fps': item.get('mediaMetadata', {}).get('video', {}).get('fps'),
+                'video_status': item.get('mediaMetadata', {}).get('video', {}).get('status')
             })
 
     # Save index to CSV
