@@ -163,9 +163,18 @@ cython_debug/
 
 # Credentials
 client_secrets.json
+token*
 
 # Image Files
 *.png
 *.jpg
 *.jpeg
 *.tiff
+
+# Data
+data/*
+output/*
+credentials/*
+
+# And except .gitkeep files
+!.gitkeep

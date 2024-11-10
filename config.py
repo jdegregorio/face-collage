@@ -3,7 +3,7 @@ import os
 # Google Photos API settings
 CLIENT_SECRETS_FILE = os.path.join('credentials', 'client_secrets.json')
 SCOPES = ['https://www.googleapis.com/auth/photoslibrary.readonly']
-NGROK_URL = ' https://88a6-73-157-10-120.ngrok-free.app'  # Replace with your actual ngrok URL
+ALBUM_ID = 'AKZP_rbWKGT7RWUaPbg2S8jKzLQSZpntyVdKnbKE0dx6GO_wORxtIXUbRciL-2D88tgGE-0gzJeH'
 
 # Image processing settings
 MIN_FACE_SIZE = 100          # Minimum face size in pixels to consider
