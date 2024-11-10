@@ -1,9 +1,10 @@
-# main.py
-
 import os
 import logging
 from simple_term_menu import TerminalMenu
 import pandas as pd
+from tqdm import tqdm
+import sys
+from contextlib import contextmanager
 
 from utils.google_photos_api import (
     list_albums,
@@ -14,6 +15,27 @@ from utils.face_detection import process_images_batch
 from utils.collage_utils import generate_collage
 from utils.progress_tracker import ProgressTracker
 from config import *
+
+# Suppress TensorFlow and Mediapipe logs
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logs (0 = all, 1 = INFO, 2 = WARNING, 3 = ERROR)
+
+# Suppress absl logging from TensorFlow and Mediapipe
+try:
+    from absl import logging as absl_logging
+    absl_logging.set_verbosity(absl_logging.ERROR)
+except ImportError:
+    pass  # absl not installed
+
+# Context manager to suppress STDERR temporarily
+@contextmanager
+def suppress_stderr():
+    with open(os.devnull, "w") as devnull:
+        old_stderr = sys.stderr
+        sys.stderr = devnull
+        try:
+            yield
+        finally:
+            sys.stderr = old_stderr
 
 def setup_logging():
     logging.basicConfig(
@@ -35,7 +57,8 @@ def main_menu():
         "3. Download and Process Photos",
         "4. Generate Collage",
         "5. View Progress",
-        "6. Exit"
+        "6. Reset Project",
+        "7. Exit"
     ]
     terminal_menu = TerminalMenu(options, title="Image Collage Project - Main Menu")
     menu_entry_index = terminal_menu.show()
@@ -109,6 +132,11 @@ def download_and_process_photos(index_file, processed_images_dir, batch_size=BAT
     total_batches = (total_photos + batch_size - 1) // batch_size
     processed_batches = tracker.processed_batches if tracker else 0
 
+    # Update total_batches in tracker
+    if tracker:
+        tracker.total_batches = total_batches
+        tracker.save_progress()
+
     batches = [df[i:i+batch_size] for i in range(0, total_photos, batch_size)]
 
     for batch_num, batch_df in enumerate(batches):
@@ -127,16 +155,18 @@ def download_and_process_photos(index_file, processed_images_dir, batch_size=BAT
             continue
 
         images = []
-        for _, row in batch_df.iterrows():
-            media_item_id = row['id']
-            filename = row['filename']
-            temp_image_path = download_photo(media_item_id, f"temp_{filename}", processed_images_dir)
-            if temp_image_path:
-                images.append((temp_image_path, filename))
+        with suppress_stderr():
+            for _, row in tqdm(batch_df.iterrows(), total=batch_df.shape[0], desc='Downloading images'):
+                media_item_id = row['id']
+                filename = row['filename']
+                temp_image_path = download_photo(media_item_id, f"temp_{filename}", processed_images_dir)
+                if temp_image_path:
+                    images.append((temp_image_path, filename))
 
         # Process images
         if images:
-            process_images_batch(images, processed_images_dir)
+            with suppress_stderr():
+                process_images_batch(images, processed_images_dir)
             # Remove temporary images
             for temp_image_path, _ in images:
                 if os.path.exists(temp_image_path):
@@ -147,6 +177,35 @@ def download_and_process_photos(index_file, processed_images_dir, batch_size=BAT
         processed_batches += 1
         if tracker:
             tracker.update_batches(processed_batches, total_batches)
+
+def reset_project(tracker):
+    """
+    Reset the project's state.
+    """
+    confirmation = input("Are you sure you want to reset the project? This will delete all progress and processed data. (yes/no): ")
+    if confirmation.lower() == 'yes':
+        # Reset tracker
+        tracker.reset_progress()
+
+        # Delete processed images
+        if os.path.exists(PROCESSED_IMAGES_DIR):
+            for filename in os.listdir(PROCESSED_IMAGES_DIR):
+                file_path = os.path.join(PROCESSED_IMAGES_DIR, filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+
+        # Delete index file
+        if os.path.exists(INDEX_FILE):
+            os.remove(INDEX_FILE)
+
+        # Delete progress file
+        if os.path.exists(PROGRESS_FILE):
+            os.remove(PROGRESS_FILE)
+
+        print("Project has been reset.")
+        logging.info("Project has been reset.")
+    else:
+        print("Project reset canceled.")
 
 def main():
     setup_logging()
@@ -192,6 +251,10 @@ def main():
             input("\nPress Enter to return to the main menu...")
 
         elif selection == 5:
+            # Reset Project
+            reset_project(tracker)
+
+        elif selection == 6:
             # Exit
             print("Exiting the application. Goodbye!")
             break

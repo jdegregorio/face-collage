@@ -176,5 +176,10 @@ data/*
 output/*
 credentials/*
 
+# Dev
+dev.py
+export.py
+project_export.txt
+
 # And except .gitkeep files
 !.gitkeep

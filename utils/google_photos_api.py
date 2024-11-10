@@ -4,7 +4,19 @@ import logging
 import requests
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from contextlib import contextmanager
+import sys
 from config import CLIENT_SECRETS_FILE, SCOPES
+
+@contextmanager
+def suppress_stderr():
+    with open(os.devnull, "w") as devnull:
+        old_stderr = sys.stderr
+        sys.stderr = devnull
+        try:
+            yield
+        finally:
+            sys.stderr = old_stderr
 
 def authenticate_google_photos():
     """
@@ -17,13 +29,15 @@ def authenticate_google_photos():
         with open(token_pickle, 'rb') as token:
             creds = pickle.load(token)
     else:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            CLIENT_SECRETS_FILE, SCOPES)
-        creds = flow.run_local_server(port=0)
+        with suppress_stderr():
+            flow = InstalledAppFlow.from_client_secrets_file(
+                CLIENT_SECRETS_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
         with open(token_pickle, 'wb') as token:
             pickle.dump(creds, token)
 
-    service = build('photoslibrary', 'v1', credentials=creds, static_discovery=False)
+    with suppress_stderr():
+        service = build('photoslibrary', 'v1', credentials=creds, static_discovery=False)
     return service
 
 def list_albums():
@@ -36,10 +50,11 @@ def list_albums():
 
     while True:
         try:
-            results = service.albums().list(
-                pageSize=50,
-                pageToken=next_page_token
-            ).execute()
+            with suppress_stderr():
+                results = service.albums().list(
+                    pageSize=50,
+                    pageToken=next_page_token
+                ).execute()
             items = results.get('albums', [])
             albums.extend(items)
             next_page_token = results.get('nextPageToken')
@@ -66,7 +81,8 @@ def get_album_photos(album_id):
                 "pageSize": 100,
                 "pageToken": next_page_token
             }
-            results = service.mediaItems().search(body=body).execute()
+            with suppress_stderr():
+                results = service.mediaItems().search(body=body).execute()
             items = results.get('mediaItems', [])
             media_items.extend(items)
             next_page_token = results.get('nextPageToken')
@@ -84,7 +100,8 @@ def download_photo(media_item_id, filename, download_dir):
     """
     service = authenticate_google_photos()
     try:
-        media_item = service.mediaItems().get(mediaItemId=media_item_id).execute()
+        with suppress_stderr():
+            media_item = service.mediaItems().get(mediaItemId=media_item_id).execute()
         base_url = media_item['baseUrl']
         mime_type = media_item['mimeType']
 
