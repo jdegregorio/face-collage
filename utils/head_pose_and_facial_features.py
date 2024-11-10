@@ -6,11 +6,11 @@ import math
 
 mp_face_mesh = mp.solutions.face_mesh
 
-def estimate_head_pose(image_path):
+def estimate_head_pose_and_facial_features(image_path):
     image = cv2.imread(image_path)
     if image is None:
         logging.warning(f"Image {image_path} is unreadable.")
-        return None, None, None
+        return None
     height, width, _ = image.shape
 
     # Camera internals
@@ -28,12 +28,12 @@ def estimate_head_pose(image_path):
 
         if not results.multi_face_landmarks:
             logging.debug(f"No face landmarks found in {image_path}.")
-            return None, None, None
+            return None
 
         face_landmarks = results.multi_face_landmarks[0]
         landmarks = face_landmarks.landmark
 
-        # 2D image points
+        # Head pose estimation
         image_points = np.array([
             (landmarks[1].x * width, landmarks[1].y * height),     # Nose tip
             (landmarks[152].x * width, landmarks[152].y * height), # Chin
@@ -59,7 +59,7 @@ def estimate_head_pose(image_path):
 
         if not success:
             logging.debug(f"solvePnP failed for {image_path}.")
-            return None, None, None
+            return None
 
         # Convert rotation vector to rotation matrix
         rotation_mat, _ = cv2.Rodrigues(rotation_vector)
@@ -71,9 +71,29 @@ def estimate_head_pose(image_path):
         _, _, _, _, _, _, euler_angles = cv2.decomposeProjectionMatrix(proj_matrix)
         pitch, yaw, roll = euler_angles.flatten()
 
-        # Convert to degrees
-        pitch = pitch
-        yaw = yaw
-        roll = roll
+        # Extract facial features
+        facial_features = {}
 
-        return yaw, pitch, roll
+        # Eye openness
+        left_eye_top = landmarks[159]
+        left_eye_bottom = landmarks[145]
+        left_eye_openness = abs(left_eye_top.y - left_eye_bottom.y) * height
+
+        right_eye_top = landmarks[386]
+        right_eye_bottom = landmarks[374]
+        right_eye_openness = abs(right_eye_top.y - right_eye_bottom.y) * height
+
+        avg_eye_openness = (left_eye_openness + right_eye_openness) / 2
+
+        facial_features['left_eye_openness'] = left_eye_openness
+        facial_features['right_eye_openness'] = right_eye_openness
+        facial_features['avg_eye_openness'] = avg_eye_openness
+
+        # Mouth openness
+        upper_lip = landmarks[13]
+        lower_lip = landmarks[14]
+        mouth_openness = abs(upper_lip.y - lower_lip.y) * height
+
+        facial_features['mouth_openness'] = mouth_openness
+
+        return yaw, pitch, roll, facial_features

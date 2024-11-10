@@ -1,7 +1,6 @@
-
 # **Super Collage**
 
-This project is designed to create a unique, large-scale photo collage from images in a Google Photos album. The collage arranges images based on the angle of the subject's face and the date of capture, creating a visual timeline of facial orientations over time. The project is particularly suited for creating collages of individuals, capturing the subtle changes in expression and pose over a period.
+This project is designed to create a unique, large-scale photo collage from images in a Google Photos album. The collage arranges images based on the angle of the subject's face, facial features, and the date of capture, creating a visual timeline of facial orientations and expressions over time. The project is particularly suited for creating collages of individuals, capturing subtle changes in expression, pose, and facial openness over a period.
 
 ## **Table of Contents**
 - [**Super Collage**](#super-collage)
@@ -23,7 +22,7 @@ This project is designed to create a unique, large-scale photo collage from imag
 
 ## **Project Overview**
 
-The Super Collage project automates the process of downloading, processing, and organizing photos from a Google Photos album to create a customized photo collage. The collage is based on specific parameters such as face orientation and the timestamp of each image, resulting in a visually organized timeline.
+The Super Collage project automates the process of downloading, processing, and organizing photos from a Google Photos album to create a customized photo collage. The collage is based on specific parameters, such as face orientation, facial feature metrics, and the timestamp of each image, resulting in a visually organized timeline of head poses and facial expressions.
 
 This project provides a user-friendly command-line interface that guides you through each step, allowing you to pause and resume the process at any point.
 
@@ -33,8 +32,8 @@ This project provides a user-friendly command-line interface that guides you thr
 
 - **Automated Photo Indexing**: Retrieve and index photo metadata from a Google Photos album.
 - **Photo Downloading, Cropping, and Resizing**: Download, crop, and resize images for face-centered compositions.
-- **Face Detection and Pose Estimation**: Detect faces in photos and estimate head pose angles for collage organization.
-- **Collage Generation**: Create a high-resolution collage arranged by head pose and time.
+- **Head Pose and Facial Features Estimation**: Detect faces, estimate head pose angles (yaw, pitch, roll), and extract facial features (eye and mouth openness).
+- **Collage Generation**: Create a high-resolution collage arranged by head orientation, facial openness, and time.
 - **Progress Tracking**: Track and resume project stages with a built-in progress tracker.
 - **User-Friendly Interface**: A simple command-line menu to navigate through the project steps.
 
@@ -58,13 +57,15 @@ super_collage_project/
 │   └── progress.log             # Log file to track project progress
 ├── output/
 │   └── final_collage.jpg        # The resulting collage image
-└── utils/                       # Helper scripts
-    ├── google_photos_api.py     # Google Photos API interface
-    ├── face_detection.py        # Functions for face detection and cropping
-    ├── head_pose_estimation.py  # Functions for head pose estimation
-    ├── collage_utils.py         # Collage creation functions
-    ├── photo.py                 # Custom class for photo metadata and processing state
-    └── progress_tracker.py      # Progress tracking utility
+├── utils/                       # Helper scripts
+│   ├── google_photos_api.py     # Google Photos API interface
+│   ├── face_detection.py        # Functions for face detection and cropping
+│   ├── head_pose_and_facial_features.py # Combined head pose and facial features estimation
+│   ├── collage_utils.py         # Collage creation functions
+│   ├── photo.py                 # Custom class for photo metadata and processing state
+│   └── progress_tracker.py      # Progress tracking utility
+└── credentials/
+    └── client_secrets.json      # Google API OAuth credentials
 ```
 
 ---
@@ -128,19 +129,20 @@ Once the application is launched, you’ll see a menu-driven interface that guid
 
 2. **Download, Crop & Resize Photos**:
 
-   - Downloads photos one at a time, detects faces, centers and resizes each image.
+   - Downloads photos one at a time, detects faces, centers, and resizes each image.
    - Processed photos are saved in `data/processed_images/`.
    - Progress is saved in `data/photos.json`, allowing you to resume if the operation is interrupted.
 
-3. **Perform Head Pose Estimation**:
+3. **Perform Head Pose and Facial Features Estimation**:
 
-   - After downloading, cropping, and resizing, select this option to analyze head pose.
-   - The system will estimate yaw, pitch, and roll angles for each face image and save this data in `data/photos.json`.
+   - After downloading, cropping, and resizing, select this option to analyze head pose and extract facial features.
+   - The system will estimate yaw, pitch, and roll angles for each face image and also extract metrics such as eye openness and mouth openness.
+   - This data is saved in `data/photos.json`.
 
 4. **Generate Collage**:
 
-   - After head pose estimation, this option arranges the images into a collage.
-   - Images are placed on a grid based on head orientation (x-axis) and time (y-axis).
+   - After head pose and facial feature estimation, this option arranges the images into a collage.
+   - Images are placed on a grid based on head orientation, facial openness, and time (timestamp).
    - The collage is saved to `output/final_collage.jpg`.
 
 5. **View Progress**:
@@ -166,11 +168,11 @@ The application is designed to support resumability. Progress is tracked in `dat
   - Select "Download, Crop & Resize Photos" to continue from where it left off.
   - The tracker will resume based on the data saved in `photos.json`.
 
-- **If Head Pose Estimation was Interrupted**:
-  - Select "Perform Head Pose Estimation" to continue from the last completed image.
+- **If Head Pose and Facial Features Estimation was Interrupted**:
+  - Select "Perform Head Pose and Facial Features Estimation" to continue from the last completed image.
 
 - **If Ready to Generate the Collage**:
-  - Ensure all photos have completed head pose estimation, then select "Generate Collage".
+  - Ensure all photos have completed head pose and facial features estimation, then select "Generate Collage".
 
 ---
 
@@ -203,7 +205,3 @@ All key parameters and settings are stored in `config.py`. You can adjust the fo
 ## **License**
 
 This project is licensed under the GNU General Public License v3.0.
-
----
-
-This README should help you get started with the project and understand the steps involved. Let me know if you need any further customization!

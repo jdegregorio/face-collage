@@ -25,10 +25,15 @@ class Photo:
     face_detection_error: str = ''
     head_pose_estimation_status: str = 'pending'  # 'pending', 'success', 'failed'
     head_pose_estimation_error: str = ''
+    facial_features_status: str = 'pending'  # 'pending', 'success', 'failed'
     # Processing results
     yaw: Optional[float] = None
     pitch: Optional[float] = None
     roll: Optional[float] = None
+    left_eye_openness: Optional[float] = None
+    right_eye_openness: Optional[float] = None
+    avg_eye_openness: Optional[float] = None
+    mouth_openness: Optional[float] = None
     original_image_path: str = ''
     processed_image_path: str = ''
 

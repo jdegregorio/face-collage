@@ -18,8 +18,7 @@ from utils.photo import Photo
 from config import *
 
 # Suppress TensorFlow and Mediapipe logs
-# Suppress TensorFlow logs (0 = all, 1 = INFO, 2 = WARNING, 3 = ERROR)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logs
 
 # Suppress absl logging from TensorFlow and Mediapipe
 try:
@@ -46,7 +45,7 @@ def main_menu():
     options = [
         "1. Index Photos in Album",
         "2. Download, Crop & Resize Photos",
-        "3. Perform Head Pose Estimation",
+        "3. Perform Head Pose and Facial Features Estimation",
         "4. Generate Collage",
         "5. View Progress",
         "6. Reset Project",
@@ -157,6 +156,10 @@ def download_crop_resize_photos(photos):
                 photo.download_status = 'failed'
                 photo.download_error = 'Download failed'
                 logging.warning(f"Failed to download photo {photo.filename}")
+                # Proceed to delete the original image even if download fails
+                if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+                    os.remove(photo.original_image_path)
+                    photo.original_image_path = ''
                 continue  # Skip to next photo
 
         # Process image
@@ -185,9 +188,9 @@ def download_crop_resize_photos(photos):
         save_photos(photos, PHOTOS_FILE)
         update_index_csv(photos, INDEX_FILE)
 
-def perform_head_pose_estimation(photos):
+def perform_head_pose_and_facial_features_estimation(photos):
     """
-    Perform head pose estimation on processed photos one by one.
+    Perform head pose estimation and extract facial features on processed photos.
     """
     total_photos = len(photos)
     logging.info(f"Total photos to process: {total_photos}")
@@ -198,20 +201,28 @@ def perform_head_pose_estimation(photos):
         print("All photos have head pose estimation completed.")
         return
 
-    from utils.head_pose_estimation import estimate_head_pose
+    from utils.head_pose_and_facial_features import estimate_head_pose_and_facial_features
 
-    for photo in tqdm(photos_to_process, desc="Estimating head poses", unit="photo"):
+    for photo in tqdm(photos_to_process, desc="Estimating head poses and extracting facial features", unit="photo"):
         if photo.head_pose_estimation_status != 'success':
-            yaw, pitch, roll = estimate_head_pose(photo.processed_image_path)
-            if yaw is not None and pitch is not None:
+            result = estimate_head_pose_and_facial_features(photo.processed_image_path)
+            if result:
+                yaw, pitch, roll, facial_features = result
                 photo.yaw = yaw
                 photo.pitch = pitch
                 photo.roll = roll
                 photo.head_pose_estimation_status = 'success'
                 photo.head_pose_estimation_error = ''
+                # Update facial features
+                photo.left_eye_openness = facial_features['left_eye_openness']
+                photo.right_eye_openness = facial_features['right_eye_openness']
+                photo.avg_eye_openness = facial_features['avg_eye_openness']
+                photo.mouth_openness = facial_features['mouth_openness']
+                photo.facial_features_status = 'success'
             else:
                 photo.head_pose_estimation_status = 'failed'
                 photo.head_pose_estimation_error = 'Head pose estimation failed'
+                photo.facial_features_status = 'failed'
                 logging.warning(f"Failed to estimate head pose for photo {photo.filename}")
                 continue  # Skip to next photo
 
@@ -286,13 +297,13 @@ def main():
             tracker.update_stage('Download and Processing Completed')
 
         elif selection == 2:
-            # Perform Head Pose Estimation
+            # Perform Head Pose and Facial Features Estimation
             photos = load_photos(PHOTOS_FILE)
             if not photos:
                 print("No photos to process. Please index an album first.")
                 continue
-            perform_head_pose_estimation(photos)
-            tracker.update_stage('Head Pose Estimation Completed')
+            perform_head_pose_and_facial_features_estimation(photos)
+            tracker.update_stage('Head Pose and Facial Features Estimation Completed')
 
         elif selection == 3:
             # Generate Collage
