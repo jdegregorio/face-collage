@@ -3,18 +3,20 @@ import cv2
 import mediapipe as mp
 from PIL import Image
 import logging
-from tqdm import tqdm
-from config import IMAGE_SIZE, INITIAL_BBOX_EXPANSION
+from config import IMAGE_SIZE, INITIAL_BBOX_EXPANSION, PROCESSED_IMAGES_DIR
 import sys
 
 mp_face_detection = mp.solutions.face_detection
 
-def process_single_image(args):
-    temp_image_path, filename, processed_images_dir = args
-    image = cv2.imread(temp_image_path)
+def process_single_image(photo):
+    image_path = photo.original_image_path
+    filename = photo.filename
+    processed_images_dir = PROCESSED_IMAGES_DIR
+
+    image = cv2.imread(image_path)
     if image is None:
         logging.warning(f"Image {filename} is unreadable.")
-        return
+        return None
     height, width, _ = image.shape
 
     # Step 1: Initial face detection to get a rough bounding box
@@ -23,7 +25,7 @@ def process_single_image(args):
 
     if not results.detections:
         logging.debug(f"No faces detected in {filename}.")
-        return  # No faces detected
+        return None  # No faces detected
 
     # Process the first face detected
     detection = results.detections[0]
@@ -61,9 +63,4 @@ def process_single_image(args):
     output_path = os.path.join(processed_images_dir, output_filename)
     pil_image.save(output_path, format='JPEG', quality=95)
     logging.info(f"Processed and saved {output_filename}")
-
-def process_images_batch(images, processed_images_dir):
-    logging.info("Processing images...")
-    args_list = [(temp_image_path, filename, processed_images_dir) for temp_image_path, filename in images]
-    for _ in tqdm(map(process_single_image, args_list), total=len(args_list), desc='Processing images', file=sys.stdout):
-        pass
+    return output_path

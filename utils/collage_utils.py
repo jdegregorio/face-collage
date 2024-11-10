@@ -3,13 +3,11 @@ from PIL import Image
 import numpy as np
 from tqdm import tqdm
 from datetime import datetime
-import exifread
 import logging
 from contextlib import contextmanager
 import sys
 
 from config import COLLAGE_WIDTH, COLLAGE_HEIGHT, IMAGE_SIZE, MAX_YAW, MAX_PITCH
-from utils.head_pose_estimation import estimate_head_pose
 
 @contextmanager
 def suppress_stderr():
@@ -21,39 +19,41 @@ def suppress_stderr():
         finally:
             sys.stderr = old_stderr
 
-def extract_timestamp(image_path):
-    try:
-        with open(image_path, 'rb') as f:
-            tags = exifread.process_file(f, stop_tag='EXIF DateTimeOriginal', details=False)
-            date_taken = tags.get('EXIF DateTimeOriginal')
-            if date_taken:
-                return datetime.strptime(str(date_taken), '%Y:%m:%d %H:%M:%S')
-    except Exception as e:
-        logging.warning(f"Failed to extract EXIF data from {image_path}: {e}")
+def extract_timestamp(photo):
+    if photo.creationTime:
+        try:
+            timestamp = datetime.strptime(photo.creationTime, '%Y-%m-%dT%H:%M:%SZ')
+            return timestamp
+        except Exception as e:
+            logging.warning(f"Failed to parse creationTime for {photo.filename}: {e}")
     # Fallback to file modification time
-    timestamp = os.path.getmtime(image_path)
-    return datetime.fromtimestamp(timestamp)
+    if photo.processed_image_path and os.path.exists(photo.processed_image_path):
+        timestamp = datetime.fromtimestamp(os.path.getmtime(photo.processed_image_path))
+        return timestamp
+    else:
+        return datetime.now()
 
-def generate_collage(processed_images_dir, output_path):
+def generate_collage(photos, output_path):
     logging.info("Generating the collage...")
 
     # Collect processed images
-    image_files = [f for f in os.listdir(processed_images_dir) if f.lower().endswith('.jpg')]
-    if not image_files:
-        logging.error("No processed images found.")
+    valid_photos = [photo for photo in photos if photo.head_pose_estimation_status == 'success' and photo.processed_image_path]
+    if not valid_photos:
+        logging.error("No processed images with head pose estimation found.")
         return
 
     images_data = []
     with suppress_stderr():
-        for img_file in tqdm(image_files, desc='Analyzing images'):
-            img_path = os.path.join(processed_images_dir, img_file)
-            timestamp = extract_timestamp(img_path)
-            yaw, pitch, roll = estimate_head_pose(img_path)
+        for photo in tqdm(valid_photos, desc='Collecting image data'):
+            img_path = photo.processed_image_path
+            timestamp = extract_timestamp(photo)
+            yaw = photo.yaw
+            pitch = photo.pitch
             if yaw is None or pitch is None:
-                logging.debug(f"Skipping {img_file} due to pose estimation failure.")
+                logging.debug(f"Skipping {photo.filename} due to missing pose data.")
                 continue
             if abs(yaw) > MAX_YAW or abs(pitch) > MAX_PITCH:
-                logging.debug(f"Skipping {img_file} due to pose angles exceeding limits.")
+                logging.debug(f"Skipping {photo.filename} due to pose angles exceeding limits.")
                 continue
             images_data.append({
                 'image_path': img_path,
@@ -91,8 +91,8 @@ def generate_collage(processed_images_dir, output_path):
                 grid[y][x] = data['image_path']
             else:
                 # Find nearest empty spot
+                found = False
                 for offset in range(1, max(grid_width, grid_height)):
-                    found = False
                     for dx in range(-offset, offset + 1):
                         for dy in range(-offset, offset + 1):
                             nx, ny = x + dx, y + dy
@@ -125,3 +125,4 @@ def generate_collage(processed_images_dir, output_path):
     with suppress_stderr():
         collage_image.save(output_path)
     logging.info(f"Collage saved to {output_path}")
+    print(f"Collage saved to {output_path}")

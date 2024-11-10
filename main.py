@@ -4,15 +4,17 @@ from simple_term_menu import TerminalMenu
 import pandas as pd
 from tqdm import tqdm
 import sys
+import json
 
 from utils.google_photos_api import (
     list_albums,
     get_album_photos,
     download_photo
 )
-from utils.face_detection import process_images_batch
+from utils.face_detection import process_single_image
 from utils.collage_utils import generate_collage
 from utils.progress_tracker import ProgressTracker
+from utils.photo import Photo
 from config import *
 
 # Suppress TensorFlow and Mediapipe logs
@@ -35,14 +37,15 @@ def setup_logging():
 def create_directories():
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(PROCESSED_IMAGES_DIR, exist_ok=True)
+    os.makedirs(ORIGINAL_IMAGES_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs('credentials', exist_ok=True)
 
 def main_menu():
     options = [
-        "1. List Albums",
-        "2. Index Photos in Album",
-        "3. Download and Process Photos",
+        "1. Index Photos in Album",
+        "2. Download, Crop & Resize Photos",
+        "3. Perform Head Pose Estimation",
         "4. Generate Collage",
         "5. View Progress",
         "6. Reset Project",
@@ -67,7 +70,7 @@ def select_album():
     selected_album = albums[menu_entry_index]
     return selected_album
 
-def create_photo_index(index_file, album_id):
+def create_photo_index(index_file, photos_file, album_id):
     """
     Create an index of all photos in the specified album.
     """
@@ -76,90 +79,133 @@ def create_photo_index(index_file, album_id):
         logging.error("No media items found in the album.")
         return
 
-    media_data = []
+    photos = []
     for item in media_items:
         if 'image' in item['mimeType']:
-            # Flatten the dictionary for easy DataFrame creation
-            media_data.append({
-                'id': item.get('id'),
-                'filename': item.get('filename'),
-                'description': item.get('description'),
-                'mimeType': item.get('mimeType'),
-                'productUrl': item.get('productUrl'),
-                'baseUrl': item.get('baseUrl'),
-                'creationTime': item.get('mediaMetadata', {}).get('creationTime'),
-                'width': item.get('mediaMetadata', {}).get('width'),
-                'height': item.get('mediaMetadata', {}).get('height'),
-                'photo_cameraMake': item.get('mediaMetadata', {}).get('photo', {}).get('cameraMake'),
-                'photo_cameraModel': item.get('mediaMetadata', {}).get('photo', {}).get('cameraModel'),
-                'photo_focalLength': item.get('mediaMetadata', {}).get('photo', {}).get('focalLength'),
-                'photo_apertureFNumber': item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber'),
-                'photo_isoEquivalent': item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent'),
-                'video_cameraMake': item.get('mediaMetadata', {}).get('video', {}).get('cameraMake'),
-                'video_cameraModel': item.get('mediaMetadata', {}).get('video', {}).get('cameraModel'),
-                'video_fps': item.get('mediaMetadata', {}).get('video', {}).get('fps'),
-                'video_status': item.get('mediaMetadata', {}).get('video', {}).get('status')
-            })
+            # Create Photo instance
+            photo = Photo(
+                id=item.get('id'),
+                filename=item.get('filename'),
+                description=item.get('description'),
+                mimeType=item.get('mimeType'),
+                productUrl=item.get('productUrl'),
+                baseUrl=item.get('baseUrl'),
+                creationTime=item.get('mediaMetadata', {}).get('creationTime'),
+                width=int(item.get('mediaMetadata', {}).get('width', 0)) if item.get('mediaMetadata', {}).get('width') else None,
+                height=int(item.get('mediaMetadata', {}).get('height', 0)) if item.get('mediaMetadata', {}).get('height') else None,
+                photo_cameraMake=item.get('mediaMetadata', {}).get('photo', {}).get('cameraMake'),
+                photo_cameraModel=item.get('mediaMetadata', {}).get('photo', {}).get('cameraModel'),
+                photo_focalLength=float(item.get('mediaMetadata', {}).get('photo', {}).get('focalLength', 0)) if item.get('mediaMetadata', {}).get('photo', {}).get('focalLength') else None,
+                photo_apertureFNumber=float(item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber', 0)) if item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber') else None,
+                photo_isoEquivalent=int(item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent', 0)) if item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent') else None,
+            )
+            photos.append(photo)
+        else:
+            logging.info(f"Skipping non-image media item: {item.get('filename')}")
 
-    # Save index to CSV
-    df = pd.DataFrame(media_data)
+    # Save photos to JSON
+    save_photos(photos, photos_file)
+    logging.info(f"Photo data saved to {photos_file}")
+
+    # Save index to CSV for reporting
+    df = pd.DataFrame([photo.to_dict() for photo in photos])
     df.to_csv(index_file, index=False)
     logging.info(f"Photo index saved to {index_file}")
-    print(f"Indexed {len(media_data)} photos from the album.")
+    print(f"Indexed {len(photos)} photos from the album.")
 
-def download_and_process_photos(index_file, processed_images_dir, batch_size=BATCH_SIZE, tracker=None):
+def save_photos(photos, file_path):
+    with open(file_path, 'w') as f:
+        json.dump([photo.to_dict() for photo in photos], f, indent=4)
+
+def load_photos(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        photos = [Photo.from_dict(photo_data) for photo_data in data]
+        return photos
+    else:
+        return []
+
+def download_crop_resize_photos(photos):
     """
-    Download and process photos in batches.
+    Download, crop, and resize photos one by one.
     """
-    # Load index
-    df = pd.read_csv(index_file)
-    total_photos = len(df)
+    total_photos = len(photos)
     logging.info(f"Total photos to process: {total_photos}")
 
-    # Calculate total batches
-    total_batches = (total_photos + batch_size - 1) // batch_size
-    processed_batches = tracker.processed_batches if tracker else 0
+    photos_to_process = [photo for photo in photos if photo.download_status != 'success' or photo.face_detection_status != 'success']
 
-    # Update total_batches in tracker
-    if tracker:
-        tracker.total_batches = total_batches
-        tracker.save_progress()
+    if not photos_to_process:
+        print("All photos have been processed.")
+        return
 
-    batches = [df[i:i+batch_size] for i in range(0, total_photos, batch_size)]
-
-    for batch_num, batch_df in enumerate(batches):
-        if batch_num < processed_batches:
-            continue  # Skip already processed batches
-
-        logging.info(f"Processing batch {batch_num + 1}/{total_batches}")
-
-        # Filter out already processed photos
-        processed_filenames = set(os.listdir(processed_images_dir))
-        processed_filenames = {os.path.splitext(f)[0] for f in processed_filenames}
-        batch_df = batch_df[~batch_df['filename'].str.replace('.', '_').isin(processed_filenames)]
-
-        if batch_df.empty:
-            logging.info("All photos in this batch have already been processed.")
-            continue
-
-        images = []
-        for _, row in tqdm(batch_df.iterrows(), total=batch_df.shape[0], desc='Downloading images', file=sys.stdout):
-            media_item_id = row['id']
-            filename = row['filename']
-            temp_image_path = download_photo(media_item_id, f"temp_{filename}", processed_images_dir)
+    for photo in tqdm(photos_to_process, desc="Processing photos", unit="photo"):
+        # Download photo
+        if photo.download_status != 'success':
+            temp_image_path = download_photo(photo.id, photo.filename, ORIGINAL_IMAGES_DIR)
             if temp_image_path:
-                images.append((temp_image_path, filename))
+                photo.original_image_path = temp_image_path
+                photo.download_status = 'success'
+                photo.download_error = ''
+            else:
+                photo.download_status = 'failed'
+                photo.download_error = 'Download failed'
+                logging.warning(f"Failed to download photo {photo.filename}")
+                continue  # Skip to next photo
 
-        if images:
-            process_images_batch(images, processed_images_dir)
-            for temp_image_path, _ in images:
-                if os.path.exists(temp_image_path):
-                    os.remove(temp_image_path)
-        else:
-            logging.info("No images to process in this batch.")
-        processed_batches += 1
-        if tracker:
-            tracker.update_batches(processed_batches, total_batches)
+        # Process image
+        if photo.face_detection_status != 'success':
+            result = process_single_image(photo)
+            if result:
+                photo.processed_image_path = result
+                photo.face_detection_status = 'success'
+                photo.face_detection_error = ''
+            else:
+                photo.face_detection_status = 'failed'
+                photo.face_detection_error = 'Face detection failed'
+                logging.warning(f"Failed to process photo {photo.filename}")
+                continue  # Skip to next photo
+
+        # Delete original image if configured
+        if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+            os.remove(photo.original_image_path)
+            photo.original_image_path = ''
+
+        # Save progress after each photo
+        save_photos(photos, PHOTOS_FILE)
+
+def perform_head_pose_estimation(photos):
+    """
+    Perform head pose estimation on processed photos one by one.
+    """
+    total_photos = len(photos)
+    logging.info(f"Total photos to process: {total_photos}")
+
+    photos_to_process = [photo for photo in photos if photo.face_detection_status == 'success' and photo.head_pose_estimation_status != 'success']
+
+    if not photos_to_process:
+        print("All photos have head pose estimation completed.")
+        return
+
+    from utils.head_pose_estimation import estimate_head_pose
+
+    for photo in tqdm(photos_to_process, desc="Estimating head poses", unit="photo"):
+        if photo.head_pose_estimation_status != 'success':
+            yaw, pitch, roll = estimate_head_pose(photo.processed_image_path)
+            if yaw is not None and pitch is not None:
+                photo.yaw = yaw
+                photo.pitch = pitch
+                photo.roll = roll
+                photo.head_pose_estimation_status = 'success'
+                photo.head_pose_estimation_error = ''
+            else:
+                photo.head_pose_estimation_status = 'failed'
+                photo.head_pose_estimation_error = 'Head pose estimation failed'
+                logging.warning(f"Failed to estimate head pose for photo {photo.filename}")
+                continue  # Skip to next photo
+
+        # Save progress after each photo
+        save_photos(photos, PHOTOS_FILE)
 
 def reset_project(tracker):
     """
@@ -177,9 +223,20 @@ def reset_project(tracker):
                 if os.path.isfile(file_path):
                     os.remove(file_path)
 
+        # Delete original images
+        if os.path.exists(ORIGINAL_IMAGES_DIR):
+            for filename in os.listdir(ORIGINAL_IMAGES_DIR):
+                file_path = os.path.join(ORIGINAL_IMAGES_DIR, filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+
         # Delete index file
         if os.path.exists(INDEX_FILE):
             os.remove(INDEX_FILE)
+
+        # Delete photos data file
+        if os.path.exists(PHOTOS_FILE):
+            os.remove(PHOTOS_FILE)
 
         # Delete progress file
         if os.path.exists(PROGRESS_FILE):
@@ -198,34 +255,40 @@ def main():
     while True:
         selection = main_menu()
         if selection == 0:
-            # List Albums
-            albums = list_albums()
-            if albums:
-                print("\nAvailable Albums:")
-                for i, album in enumerate(albums):
-                    print(f"{i+1}. {album.get('title', 'Untitled')} (ID: {album['id']})")
-                input("\nPress Enter to return to the main menu...")
-            else:
-                print("No albums found.")
-                input("\nPress Enter to return to the main menu...")
-
-        elif selection == 1:
             # Index Photos in Album
             selected_album = select_album()
             if selected_album:
                 album_id = selected_album['id']
-                create_photo_index(INDEX_FILE, album_id)
+                create_photo_index(INDEX_FILE, PHOTOS_FILE, album_id)
                 tracker.update_stage('Indexing Completed')
             else:
                 print("No album selected.")
 
+        elif selection == 1:
+            # Download, Crop & Resize Photos
+            photos = load_photos(PHOTOS_FILE)
+            if not photos:
+                print("No photos to process. Please index an album first.")
+                continue
+            download_crop_resize_photos(photos)
+            tracker.update_stage('Download and Processing Completed')
+
         elif selection == 2:
-            # Download and Process Photos
-            download_and_process_photos(INDEX_FILE, PROCESSED_IMAGES_DIR, batch_size=BATCH_SIZE, tracker=tracker)
+            # Perform Head Pose Estimation
+            photos = load_photos(PHOTOS_FILE)
+            if not photos:
+                print("No photos to process. Please index an album first.")
+                continue
+            perform_head_pose_estimation(photos)
+            tracker.update_stage('Head Pose Estimation Completed')
 
         elif selection == 3:
             # Generate Collage
-            generate_collage(PROCESSED_IMAGES_DIR, COLLAGE_OUTPUT_PATH)
+            photos = load_photos(PHOTOS_FILE)
+            if not photos:
+                print("No photos to process. Please index an album first.")
+                continue
+            generate_collage(photos, COLLAGE_OUTPUT_PATH)
             tracker.update_stage('Collage Generated')
 
         elif selection == 4:
