@@ -1,5 +1,6 @@
 from dataclasses import dataclass, asdict
 from typing import Optional
+from datetime import datetime
 
 @dataclass
 class Photo:
@@ -18,6 +19,12 @@ class Photo:
     photo_focalLength: Optional[float]
     photo_apertureFNumber: Optional[float]
     photo_isoEquivalent: Optional[int]
+    # Date components
+    timestamp: Optional[datetime] = None
+    year: Optional[int] = None
+    month: Optional[int] = None
+    day: Optional[int] = None
+    weekday: Optional[int] = None
     # Processing status
     download_status: str = 'pending'  # 'pending', 'success', 'failed'
     download_error: str = ''
@@ -41,8 +48,13 @@ class Photo:
     processed_image_path: str = ''
 
     def to_dict(self):
-        return asdict(self)
+        data = asdict(self)
+        if self.timestamp:
+            data['timestamp'] = self.timestamp.isoformat()
+        return data
 
     @staticmethod
     def from_dict(data):
+        if 'timestamp' in data and data['timestamp']:
+            data['timestamp'] = datetime.fromisoformat(data['timestamp'])
         return Photo(**data)

@@ -5,6 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 import sys
 import json
+from datetime import datetime
 
 from utils.google_photos_api import (
     list_albums,
@@ -18,6 +19,7 @@ from utils.photo import Photo
 from utils.filtering import (
     exclude_failed_processing_photos,
     filter_photos_by_features,
+    filter_photos_by_date,  # Added function
     update_status_based_on_file_existence,
     reset_filters
 )
@@ -92,6 +94,20 @@ def create_photo_index(index_file, photos_file, album_id):
     photos = []
     for item in media_items:
         if 'image' in item['mimeType']:
+            # Parse creationTime
+            creationTime = item.get('mediaMetadata', {}).get('creationTime')
+            timestamp = None
+            year = month = day = weekday = None
+            if creationTime:
+                try:
+                    timestamp = datetime.strptime(creationTime, '%Y-%m-%dT%H:%M:%SZ')
+                    year = timestamp.year
+                    month = timestamp.month
+                    day = timestamp.day
+                    weekday = timestamp.weekday()  # Monday is 0
+                except Exception as e:
+                    logging.warning(f"Failed to parse creationTime for {item.get('filename')}: {e}")
+
             # Create Photo instance
             photo = Photo(
                 id=item.get('id'),
@@ -100,7 +116,7 @@ def create_photo_index(index_file, photos_file, album_id):
                 mimeType=item.get('mimeType'),
                 productUrl=item.get('productUrl'),
                 baseUrl=item.get('baseUrl'),
-                creationTime=item.get('mediaMetadata', {}).get('creationTime'),
+                creationTime=creationTime,
                 width=int(item.get('mediaMetadata', {}).get('width', 0)) if item.get('mediaMetadata', {}).get('width') else None,
                 height=int(item.get('mediaMetadata', {}).get('height', 0)) if item.get('mediaMetadata', {}).get('height') else None,
                 photo_cameraMake=item.get('mediaMetadata', {}).get('photo', {}).get('cameraMake'),
@@ -108,6 +124,11 @@ def create_photo_index(index_file, photos_file, album_id):
                 photo_focalLength=float(item.get('mediaMetadata', {}).get('photo', {}).get('focalLength', 0)) if item.get('mediaMetadata', {}).get('photo', {}).get('focalLength') else None,
                 photo_apertureFNumber=float(item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber', 0)) if item.get('mediaMetadata', {}).get('photo', {}).get('apertureFNumber') else None,
                 photo_isoEquivalent=int(item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent', 0)) if item.get('mediaMetadata', {}).get('photo', {}).get('isoEquivalent') else None,
+                timestamp=timestamp,
+                year=year,
+                month=month,
+                day=day,
+                weekday=weekday,
             )
             photos.append(photo)
         else:
@@ -321,9 +342,10 @@ def filter_and_manage_photos(photos):
         options = [
             "1. Exclude Photos with Failed Processing",
             "2. Filter Photos by Head Pose and Facial Features",
-            "3. Update Status Based on File Existence",
-            "4. Reset All Filters",
-            "5. Return to Main Menu"
+            "3. Filter Photos by Date Range",
+            "4. Update Status Based on File Existence",
+            "5. Reset All Filters",
+            "6. Return to Main Menu"
         ]
         terminal_menu = TerminalMenu(options, title="Filter and Manage Photos")
         menu_entry_index = terminal_menu.show()
@@ -339,16 +361,21 @@ def filter_and_manage_photos(photos):
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
         elif menu_entry_index == 2:
+            # Filter Photos by Date Range
+            filter_photos_by_date(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+        elif menu_entry_index == 3:
             # Update Status Based on File Existence
             update_status_based_on_file_existence(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
-        elif menu_entry_index == 3:
+        elif menu_entry_index == 4:
             # Reset All Filters
             reset_filters(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
-        elif menu_entry_index == 4:
+        elif menu_entry_index == 5:
             # Return to Main Menu
             break
         else:

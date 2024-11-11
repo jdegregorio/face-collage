@@ -5,6 +5,7 @@ from tqdm import tqdm
 import os
 import shutil
 from config import PROCESSED_IMAGES_DIR, EXCLUDED_IMAGES_DIR
+from datetime import datetime
 
 def exclude_failed_processing_photos(photos):
     total_photos = len(photos)
@@ -107,6 +108,62 @@ def filter_photos_by_features(photos):
                 print("No changes made.")
         else:
             print("Invalid selection. Please try again.")
+
+def filter_photos_by_date(photos):
+    # Collect timestamps from all photos
+    timestamps = [photo.timestamp for photo in photos if photo.timestamp]
+    if not timestamps:
+        print("No date information available for photos.")
+        return
+
+    min_date = min(timestamps).date()
+    max_date = max(timestamps).date()
+
+    print(f"\nPhoto dates range from {min_date} to {max_date}.")
+
+    try:
+        start_date_input = input(f"Enter start date (YYYY-MM-DD) (or press Enter to skip): ")
+        if start_date_input.strip() != '':
+            start_date = datetime.strptime(start_date_input.strip(), '%Y-%m-%d').date()
+        else:
+            start_date = min_date
+
+        end_date_input = input(f"Enter end date (YYYY-MM-DD) (or press Enter to skip): ")
+        if end_date_input.strip() != '':
+            end_date = datetime.strptime(end_date_input.strip(), '%Y-%m-%d').date()
+        else:
+            end_date = max_date
+    except ValueError:
+        print("Invalid date format. Please enter dates in YYYY-MM-DD format.")
+        return
+
+    if start_date > end_date:
+        print("Start date must be before or equal to end date.")
+        return
+
+    # Determine how many photos meet the criteria
+    photos_meeting_criteria = [photo for photo in photos if photo.timestamp and start_date <= photo.timestamp.date() <= end_date]
+    total_meeting_criteria = len(photos_meeting_criteria)
+    print(f"\nTotal photos meeting the date range: {total_meeting_criteria}")
+
+    # Determine net additional exclusions
+    currently_included = [photo for photo in photos if photo.include_in_collage]
+    photos_to_exclude = [photo for photo in currently_included if not (photo.timestamp and start_date <= photo.timestamp.date() <= end_date)]
+    net_additional_exclusions = len(photos_to_exclude)
+    print(f"Net additional photos to be excluded: {net_additional_exclusions}")
+
+    confirmation = input("Do you want to apply this date filter? (yes/no): ")
+    if confirmation.lower() == 'yes':
+        # Apply filtering
+        for photo in photos_to_exclude:
+            photo.include_in_collage = False
+            if photo.exclusion_reason:
+                photo.exclusion_reason += f'; Date not in range'
+            else:
+                photo.exclusion_reason = "Date not in range"
+        print(f"Excluded {net_additional_exclusions} photos based on date filtering.")
+    else:
+        print("No changes made.")
 
 def update_status_based_on_file_existence(photos):
     processed_images = set(os.listdir(PROCESSED_IMAGES_DIR))
