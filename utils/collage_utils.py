@@ -37,9 +37,10 @@ def generate_collage(photos, output_path):
     logging.info("Generating the collage...")
 
     # Collect processed images
-    valid_photos = [photo for photo in photos if photo.head_pose_estimation_status == 'success' and photo.processed_image_path]
+    valid_photos = [photo for photo in photos if photo.include_in_collage and photo.head_pose_estimation_status == 'success' and photo.processed_image_path]
     if not valid_photos:
         logging.error("No processed images with head pose estimation found.")
+        print("No images available for collage generation. Please check your filters and included photos.")
         return
 
     images_data = []
@@ -64,6 +65,7 @@ def generate_collage(photos, output_path):
 
     if not images_data:
         logging.error("No images meet the criteria for collage generation.")
+        print("No images meet the criteria for collage generation.")
         return
 
     # Normalize yaw and timestamp

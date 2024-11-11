@@ -24,11 +24,13 @@ PHOTOS_FILE = os.path.join(DATA_DIR, 'photos.json')
 PROGRESS_FILE = os.path.join(DATA_DIR, 'progress.log')
 PROCESSED_IMAGES_DIR = os.path.join(DATA_DIR, 'processed_images')
 ORIGINAL_IMAGES_DIR = os.path.join(DATA_DIR, 'original')
+EXCLUDED_IMAGES_DIR = os.path.join(DATA_DIR, 'excluded_images')  # New directory for excluded images
 OUTPUT_DIR = os.path.join('output')
 COLLAGE_OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'final_collage.jpg')
+LOG_DIR = os.path.join(DATA_DIR, 'logs')  # Directory for logs
 
 # Processing settings
 DELETE_ORIGINAL_AFTER_PROCESSING = True  # Set to False to keep original images after processing
 
 # Logging settings
-LOG_LEVEL = 'ERROR'          # Set to 'ERROR' to reduce verbosity
+LOG_LEVEL = 'ERROR'          # Set to 'ERROR' for minimal logs or 'DEBUG' for detailed logs

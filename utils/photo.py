@@ -26,6 +26,9 @@ class Photo:
     head_pose_estimation_status: str = 'pending'  # 'pending', 'success', 'failed'
     head_pose_estimation_error: str = ''
     facial_features_status: str = 'pending'  # 'pending', 'success', 'failed'
+    # Inclusion status
+    include_in_collage: bool = True  # Whether to include in the collage
+    exclusion_reason: Optional[str] = ''
     # Processing results
     yaw: Optional[float] = None
     pitch: Optional[float] = None

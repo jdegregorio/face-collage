@@ -15,6 +15,11 @@ from utils.face_detection import process_single_image
 from utils.collage_utils import generate_collage
 from utils.progress_tracker import ProgressTracker
 from utils.photo import Photo
+from utils.filtering import (
+    exclude_failed_processing_photos,
+    filter_photos_by_features,
+    update_status_based_on_file_existence
+)
 from config import *
 
 # Suppress TensorFlow and Mediapipe logs
@@ -28,9 +33,10 @@ except ImportError:
     pass  # absl not installed
 
 def setup_logging():
+    os.makedirs(LOG_DIR, exist_ok=True)
     logging.basicConfig(
-        filename='app.log',
-        level=logging.ERROR,  # Set to ERROR to reduce verbosity
+        filename=os.path.join(LOG_DIR, 'app.log'),
+        level=getattr(logging, LOG_LEVEL),
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
@@ -39,6 +45,7 @@ def create_directories():
     os.makedirs(PROCESSED_IMAGES_DIR, exist_ok=True)
     os.makedirs(ORIGINAL_IMAGES_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(EXCLUDED_IMAGES_DIR, exist_ok=True)
     os.makedirs('credentials', exist_ok=True)
 
 def main_menu():
@@ -46,10 +53,11 @@ def main_menu():
         "1. Index Photos in Album",
         "2. Download, Crop & Resize Photos",
         "3. Perform Head Pose and Facial Features Estimation",
-        "4. Generate Collage",
-        "5. View Progress",
-        "6. Reset Project",
-        "7. Exit"
+        "4. Filter and Manage Photos",
+        "5. Generate Collage",
+        "6. View Progress",
+        "7. Reset Project",
+        "8. Exit"
     ]
     terminal_menu = TerminalMenu(options, title="Image Collage Project - Main Menu")
     menu_entry_index = terminal_menu.show()
@@ -108,9 +116,7 @@ def create_photo_index(index_file, photos_file, album_id):
     logging.info(f"Photo data saved to {photos_file}")
 
     # Save index to CSV for reporting
-    df = pd.DataFrame([photo.to_dict() for photo in photos])
-    df.to_csv(index_file, index=False)
-    logging.info(f"Photo index saved to {index_file}")
+    update_index_csv(photos, index_file)
     print(f"Indexed {len(photos)} photos from the album.")
 
 def save_photos(photos, file_path):
@@ -284,6 +290,13 @@ def reset_project(tracker):
                 if os.path.isfile(file_path):
                     os.remove(file_path)
 
+        # Delete excluded images
+        if os.path.exists(EXCLUDED_IMAGES_DIR):
+            for filename in os.listdir(EXCLUDED_IMAGES_DIR):
+                file_path = os.path.join(EXCLUDED_IMAGES_DIR, filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+
         # Delete index file
         if os.path.exists(INDEX_FILE):
             os.remove(INDEX_FILE)
@@ -300,6 +313,38 @@ def reset_project(tracker):
         logging.info("Project has been reset.")
     else:
         print("Project reset canceled.")
+
+def filter_and_manage_photos(photos):
+    while True:
+        options = [
+            "1. Exclude Photos with Failed Processing",
+            "2. Filter Photos by Head Pose and Facial Features",
+            "3. Update Status Based on File Existence",
+            "4. Return to Main Menu"
+        ]
+        terminal_menu = TerminalMenu(options, title="Filter and Manage Photos")
+        menu_entry_index = terminal_menu.show()
+
+        if menu_entry_index == 0:
+            # Exclude Photos with Failed Processing
+            exclude_failed_processing_photos(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+        elif menu_entry_index == 1:
+            # Filter Photos by Head Pose and Facial Features
+            filter_photos_by_features(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+        elif menu_entry_index == 2:
+            # Update Status Based on File Existence
+            update_status_based_on_file_existence(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+        elif menu_entry_index == 3:
+            # Return to Main Menu
+            break
+        else:
+            print("Invalid selection. Please try again.")
 
 def main():
     setup_logging()
@@ -337,6 +382,15 @@ def main():
             tracker.update_stage('Head Pose and Facial Features Estimation Completed')
 
         elif selection == 3:
+            # Filter and Manage Photos
+            photos = load_photos(PHOTOS_FILE)
+            if not photos:
+                print("No photos to process. Please index an album first.")
+                continue
+            filter_and_manage_photos(photos)
+            tracker.update_stage('Filtering and Management Completed')
+
+        elif selection == 4:
             # Generate Collage
             photos = load_photos(PHOTOS_FILE)
             if not photos:
@@ -345,16 +399,16 @@ def main():
             generate_collage(photos, COLLAGE_OUTPUT_PATH)
             tracker.update_stage('Collage Generated')
 
-        elif selection == 4:
+        elif selection == 5:
             # View Progress
-            tracker.display_progress()
+            tracker.display_progress(photos)
             input("\nPress Enter to return to the main menu...")
 
-        elif selection == 5:
+        elif selection == 6:
             # Reset Project
             reset_project(tracker)
 
-        elif selection == 6:
+        elif selection == 7:
             # Exit
             print("Exiting the application. Goodbye!")
             break

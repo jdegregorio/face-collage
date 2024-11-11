@@ -32,6 +32,13 @@ class ProgressTracker:
         self.stage = ''
         self.save_progress()
 
-    def display_progress(self):
+    def display_progress(self, photos=None):
         print("\nCurrent Progress:")
         print(f"Stage: {self.stage}")
+        if photos:
+            total_photos = len(photos)
+            included_photos = sum(1 for photo in photos if photo.include_in_collage)
+            excluded_photos = total_photos - included_photos
+            print(f"Total Photos: {total_photos}")
+            print(f"Included Photos: {included_photos}")
+            print(f"Excluded Photos: {excluded_photos}")

@@ -1,6 +1,6 @@
 # **Super Collage**
 
-This project is designed to create a unique, large-scale photo collage from images in a Google Photos album. The collage arranges images based on the angle of the subject's face, facial features, and the date of capture, creating a visual timeline of facial orientations and expressions over time. The project is particularly suited for creating collages of individuals, capturing subtle changes in expression, pose, and facial openness over a period.
+This project creates a unique, large-scale photo collage from images in a Google Photos album. The collage arranges images based on the angle of the subject's face, facial features, and the date of capture, creating a visual timeline of facial orientations and expressions over time.
 
 ## **Table of Contents**
 - [**Super Collage**](#super-collage)
@@ -36,6 +36,8 @@ This project provides a user-friendly command-line interface that guides you thr
 - **Collage Generation**: Create a high-resolution collage arranged by head orientation, facial openness, and time.
 - **Progress Tracking**: Track and resume project stages with a built-in progress tracker.
 - **User-Friendly Interface**: A simple command-line menu to navigate through the project steps.
+- **Advanced Filtering Options**: Exclude photos based on processing failures, head pose angles, facial features, or manual exclusion.
+- **Manual Review and Exclusion**: Move unwanted images to an `excluded_images` folder for easy management.
 
 ---
 
