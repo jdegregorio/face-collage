@@ -145,48 +145,70 @@ def download_crop_resize_photos(photos):
         return
 
     for photo in tqdm(photos_to_process, desc="Processing photos", unit="photo"):
-        # Download photo
-        if photo.download_status != 'success':
-            temp_image_path = download_photo(photo.id, photo.filename, ORIGINAL_IMAGES_DIR)
-            if temp_image_path:
-                photo.original_image_path = temp_image_path
-                photo.download_status = 'success'
-                photo.download_error = ''
-            else:
-                photo.download_status = 'failed'
-                photo.download_error = 'Download failed'
-                logging.warning(f"Failed to download photo {photo.filename}")
-                # Proceed to delete the original image even if download fails
-                if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
-                    os.remove(photo.original_image_path)
-                    photo.original_image_path = ''
-                continue  # Skip to next photo
+        try:
+            # Download photo
+            if photo.download_status != 'success':
+                temp_image_path = download_photo(photo.id, photo.filename, ORIGINAL_IMAGES_DIR)
+                if temp_image_path:
+                    photo.original_image_path = temp_image_path
+                    photo.download_status = 'success'
+                    photo.download_error = ''
+                else:
+                    photo.download_status = 'failed'
+                    photo.download_error = 'Download failed'
+                    logging.warning(f"Failed to download photo {photo.filename}")
+                    # Proceed to delete the original image even if download fails
+                    if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+                        os.remove(photo.original_image_path)
+                        photo.original_image_path = ''
+                    # Save progress and continue to next photo
+                    save_photos(photos, PHOTOS_FILE)
+                    update_index_csv(photos, INDEX_FILE)
+                    continue  # Skip to next photo
 
-        # Process image
-        if photo.face_detection_status != 'success':
-            result = process_single_image(photo)
-            if result:
-                photo.processed_image_path = result
-                photo.face_detection_status = 'success'
-                photo.face_detection_error = ''
-            else:
-                photo.face_detection_status = 'failed'
-                photo.face_detection_error = 'Face detection failed'
-                logging.warning(f"Failed to process photo {photo.filename}")
-                # Proceed to delete the original image even if face detection fails
-                if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
-                    os.remove(photo.original_image_path)
-                    photo.original_image_path = ''
-                continue  # Skip to next photo
+            # Process image
+            if photo.face_detection_status != 'success':
+                result = process_single_image(photo)
+                if result:
+                    photo.processed_image_path = result
+                    photo.face_detection_status = 'success'
+                    photo.face_detection_error = ''
+                else:
+                    photo.face_detection_status = 'failed'
+                    photo.face_detection_error = 'Face detection failed'
+                    logging.warning(f"Failed to process photo {photo.filename}")
+                    # Proceed to delete the original image even if face detection fails
+                    if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+                        os.remove(photo.original_image_path)
+                        photo.original_image_path = ''
+                    # Save progress and continue to next photo
+                    save_photos(photos, PHOTOS_FILE)
+                    update_index_csv(photos, INDEX_FILE)
+                    continue  # Skip to next photo
 
-        # Delete original image if configured
-        if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
-            os.remove(photo.original_image_path)
-            photo.original_image_path = ''
+            # Delete original image if configured
+            if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+                os.remove(photo.original_image_path)
+                photo.original_image_path = ''
 
-        # Save progress after each photo
-        save_photos(photos, PHOTOS_FILE)
-        update_index_csv(photos, INDEX_FILE)
+            # Save progress after each photo
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+
+        except Exception as e:
+            logging.error(f"Unexpected error processing photo {photo.filename}: {e}")
+            photo.download_status = 'failed'
+            photo.face_detection_status = 'failed'
+            photo.download_error = 'Unexpected error'
+            photo.face_detection_error = 'Unexpected error'
+            # Proceed to delete the original image even if an unexpected error occurs
+            if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
+                os.remove(photo.original_image_path)
+                photo.original_image_path = ''
+            # Save progress and continue to next photo
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+            continue  # Skip to next photo
 
 def perform_head_pose_and_facial_features_estimation(photos):
     """
@@ -204,31 +226,40 @@ def perform_head_pose_and_facial_features_estimation(photos):
     from utils.head_pose_and_facial_features import estimate_head_pose_and_facial_features
 
     for photo in tqdm(photos_to_process, desc="Estimating head poses and extracting facial features", unit="photo"):
-        if photo.head_pose_estimation_status != 'success':
-            result = estimate_head_pose_and_facial_features(photo.processed_image_path)
-            if result:
-                yaw, pitch, roll, facial_features = result
-                photo.yaw = yaw
-                photo.pitch = pitch
-                photo.roll = roll
-                photo.head_pose_estimation_status = 'success'
-                photo.head_pose_estimation_error = ''
-                # Update facial features
-                photo.left_eye_openness = facial_features['left_eye_openness']
-                photo.right_eye_openness = facial_features['right_eye_openness']
-                photo.avg_eye_openness = facial_features['avg_eye_openness']
-                photo.mouth_openness = facial_features['mouth_openness']
-                photo.facial_features_status = 'success'
-            else:
-                photo.head_pose_estimation_status = 'failed'
-                photo.head_pose_estimation_error = 'Head pose estimation failed'
-                photo.facial_features_status = 'failed'
-                logging.warning(f"Failed to estimate head pose for photo {photo.filename}")
-                continue  # Skip to next photo
+        try:
+            if photo.head_pose_estimation_status != 'success':
+                result = estimate_head_pose_and_facial_features(photo.processed_image_path)
+                if result:
+                    yaw, pitch, roll, facial_features = result
+                    photo.yaw = yaw
+                    photo.pitch = pitch
+                    photo.roll = roll
+                    photo.head_pose_estimation_status = 'success'
+                    photo.head_pose_estimation_error = ''
+                    # Update facial features
+                    photo.left_eye_openness = facial_features['left_eye_openness']
+                    photo.right_eye_openness = facial_features['right_eye_openness']
+                    photo.avg_eye_openness = facial_features['avg_eye_openness']
+                    photo.mouth_openness = facial_features['mouth_openness']
+                    photo.facial_features_status = 'success'
+                else:
+                    photo.head_pose_estimation_status = 'failed'
+                    photo.head_pose_estimation_error = 'Head pose estimation failed'
+                    photo.facial_features_status = 'failed'
+                    logging.warning(f"Failed to estimate head pose for photo {photo.filename}")
+                # Save progress after each photo
+                save_photos(photos, PHOTOS_FILE)
+                update_index_csv(photos, INDEX_FILE)
 
-            # Save progress after each photo
+        except Exception as e:
+            logging.error(f"Unexpected error processing photo {photo.filename}: {e}")
+            photo.head_pose_estimation_status = 'failed'
+            photo.head_pose_estimation_error = 'Unexpected error'
+            photo.facial_features_status = 'failed'
+            # Save progress and continue to next photo
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
+            continue  # Skip to next photo
 
 def reset_project(tracker):
     """
