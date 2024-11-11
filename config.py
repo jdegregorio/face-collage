@@ -25,7 +25,6 @@ PROCESSED_IMAGES_DIR = os.path.join(DATA_DIR, 'processed_images')
 ORIGINAL_IMAGES_DIR = os.path.join(DATA_DIR, 'original')
 EXCLUDED_IMAGES_DIR = os.path.join(DATA_DIR, 'excluded_images')
 OUTPUT_DIR = os.path.join('output')
-COLLAGE_OUTPUT_PATH = os.path.join(OUTPUT_DIR, 'final_collage.jpg')
 LOG_DIR = os.path.join(DATA_DIR, 'logs')  # Directory for logs
 
 # Processing settings

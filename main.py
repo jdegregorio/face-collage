@@ -22,7 +22,7 @@ from utils.filtering import (
     filter_photos_by_date,
     update_status_based_on_file_existence,
     reset_filters,
-    sample_photos_temporally  # Moved function to filtering.py
+    sample_photos_temporally
 )
 from config import *
 
@@ -683,6 +683,13 @@ def generate_collage_menu(photos):
     photo_width_px = int(photo_width_in * dpi)
     photo_height_px = int(photo_height_in * dpi)
 
+    # Ask user for output filename
+    output_filename = input("Enter a name for the output collage file (without extension): ").strip()
+    if not output_filename:
+        print("Filename cannot be empty.")
+        return
+    output_path = os.path.join(OUTPUT_DIR, f"{output_filename}.jpg")
+
     # Prepare options to pass to generate_collage
     collage_options = {
         'collage_width_px': collage_width_px,
@@ -695,7 +702,6 @@ def generate_collage_menu(photos):
     }
 
     # Call generate_collage
-    output_path = COLLAGE_OUTPUT_PATH
     generate_collage(selected_photos, output_path, collage_options)
     print(f"\nCollage generated and saved to {output_path}")
 
