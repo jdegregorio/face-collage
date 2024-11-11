@@ -1,10 +1,8 @@
 import os
 import cv2
 import mediapipe as mp
-from PIL import Image
 import logging
 from config import IMAGE_SIZE, INITIAL_BBOX_EXPANSION, PROCESSED_IMAGES_DIR
-import sys
 
 mp_face_detection = mp.solutions.face_detection
 
@@ -70,6 +68,29 @@ def process_single_image(photo):
 
     # Crop the image
     face_image = image[y_min_new:y_max_new, x_min_new:x_max_new].copy()
+
+    # Ensure the face image is square by further cropping if necessary
+    face_height, face_width = face_image.shape[:2]
+    if face_width != face_height:
+        # Find the center coordinates
+        center_x = face_width // 2
+        center_y = face_height // 2
+
+        # Determine the size of the square we can crop
+        side_length = min(face_width, face_height)
+
+        # Calculate the top-left corner of the square
+        x1 = center_x - side_length // 2
+        y1 = center_y - side_length // 2
+
+        # Ensure the coordinates are within the image boundaries
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = x1 + side_length
+        y2 = y1 + side_length
+
+        # Crop the image to the square
+        face_image = face_image[y1:y2, x1:x2]
 
     # Resize face image to desired IMAGE_SIZE
     face_image = cv2.resize(face_image, (IMAGE_SIZE, IMAGE_SIZE), interpolation=cv2.INTER_AREA)
