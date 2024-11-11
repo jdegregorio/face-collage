@@ -99,7 +99,8 @@ def update_status_based_on_file_existence(photos):
     moved_photos = 0
 
     for photo in tqdm(photos, desc="Updating photo statuses", unit="photo"):
-        processed_filename = os.path.basename(photo.processed_image_path) if photo.processed_image_path else ''
+        # Use consistent filenames based on photo.id
+        processed_filename = f"{photo.id}.jpg"
         if photo.include_in_collage:
             if processed_filename not in processed_images:
                 # Check if the image was moved to excluded_images
@@ -117,12 +118,3 @@ def update_status_based_on_file_existence(photos):
     print(f"Photos moved to excluded_images: {moved_photos}")
     print(f"Photos deleted: {deleted_photos}")
 
-    # Optionally, move images from processed_images to excluded_images
-    confirmation = input("Do you want to move missing images to excluded_images folder? (yes/no): ")
-    if confirmation.lower() == 'yes':
-        for filename in excluded_images:
-            source_path = os.path.join(PROCESSED_IMAGES_DIR, filename)
-            dest_path = os.path.join(EXCLUDED_IMAGES_DIR, filename)
-            if os.path.exists(source_path):
-                shutil.move(source_path, dest_path)
-        print("Moved missing images to excluded_images folder.")

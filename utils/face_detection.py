@@ -10,12 +10,11 @@ mp_face_detection = mp.solutions.face_detection
 
 def process_single_image(photo):
     image_path = photo.original_image_path
-    filename = photo.filename
     processed_images_dir = PROCESSED_IMAGES_DIR
 
     image = cv2.imread(image_path)
     if image is None:
-        logging.warning(f"Image {filename} is unreadable.")
+        logging.warning(f"Image {photo.filename} is unreadable.")
         return None
     height, width, _ = image.shape
 
@@ -24,7 +23,7 @@ def process_single_image(photo):
         results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
     if not results.detections:
-        logging.debug(f"No faces detected in {filename}.")
+        logging.debug(f"No faces detected in {photo.filename}.")
         return None  # No faces detected
 
     # Process the first face detected
@@ -58,8 +57,8 @@ def process_single_image(photo):
     pil_image = Image.fromarray(cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB))
     pil_image = pil_image.resize((IMAGE_SIZE, IMAGE_SIZE))
 
-    # Save processed image
-    output_filename = os.path.splitext(filename)[0].replace('.', '_') + '.jpg'
+    # Save processed image using photo.id
+    output_filename = f"{photo.id}.jpg"
     output_path = os.path.join(processed_images_dir, output_filename)
     pil_image.save(output_path, format='JPEG', quality=95)
     logging.info(f"Processed and saved {output_filename}")
