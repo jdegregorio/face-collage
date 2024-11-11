@@ -14,8 +14,7 @@ MAX_PITCH = 45.0             # Maximum pitch angle to include (degrees)
 INITIAL_BBOX_EXPANSION = 2   # Percentage to expand the initial bounding box (e.g., 0.2 for 20%)
 
 # Collage settings
-COLLAGE_WIDTH = 6000         # Width of the final collage image in pixels
-COLLAGE_HEIGHT = 9000        # Height of the final collage image in pixels
+DEFAULT_DPI = 300            # Default DPI for collage generation
 
 # Paths
 DATA_DIR = os.path.join('data')
