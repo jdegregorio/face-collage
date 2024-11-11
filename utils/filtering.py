@@ -63,7 +63,7 @@ def filter_photos_by_features(photos):
     terminal_menu = TerminalMenu(options, title="Select a Feature to Filter By")
     while True:
         menu_entry_index = terminal_menu.show()
-        if menu_entry_index == 4:
+        if menu_entry_index == 4 or menu_entry_index is None:
             break
         elif menu_entry_index in [0, 1, 2, 3]:
             feature_names = ['yaw', 'pitch', 'avg_eye_openness', 'mouth_openness']
@@ -122,7 +122,7 @@ def filter_photos_by_date(photos):
     terminal_menu = TerminalMenu(options, title="Select Date Unit to Filter By")
     while True:
         menu_entry_index = terminal_menu.show()
-        if menu_entry_index == 4:
+        if menu_entry_index == 4 or menu_entry_index is None:
             break
         elif menu_entry_index in [0, 1, 2, 3]:
             date_unit = date_units[menu_entry_index]
@@ -228,3 +228,24 @@ def reset_filters(photos):
         print("All filters have been reset. All photos are now included in the collage.")
     else:
         print("Reset filters canceled.")
+
+def sample_photos_temporally(photos, total_needed):
+    """
+    Selects a subset of photos maintaining temporal spacing as much as possible.
+    """
+    # Sort photos by timestamp
+    photos = sorted(photos, key=lambda p: p.timestamp or datetime.now())
+
+    # If total_needed >= len(photos), return all photos
+    if total_needed >= len(photos):
+        return photos
+
+    # Calculate the interval between selected photos
+    interval = len(photos) / total_needed
+
+    selected_photos = []
+    for i in range(total_needed):
+        index = int(i * interval)
+        selected_photos.append(photos[index])
+
+    return selected_photos

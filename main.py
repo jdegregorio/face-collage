@@ -21,7 +21,8 @@ from utils.filtering import (
     filter_photos_by_features,
     filter_photos_by_date,
     update_status_based_on_file_existence,
-    reset_filters
+    reset_filters,
+    sample_photos_temporally  # Moved function to filtering.py
 )
 from config import *
 
@@ -408,27 +409,6 @@ def filter_and_manage_photos(photos):
         else:
             print("Invalid selection. Please try again.")
 
-def sample_photos_temporally(photos, total_needed):
-    """
-    Selects a subset of photos maintaining temporal spacing as much as possible.
-    """
-    # Sort photos by timestamp
-    photos = sorted(photos, key=lambda p: p.timestamp or datetime.now())
-
-    # If total_needed >= len(photos), return all photos
-    if total_needed >= len(photos):
-        return photos
-
-    # Calculate the interval between selected photos
-    interval = len(photos) / total_needed
-
-    selected_photos = []
-    for i in range(total_needed):
-        index = int(i * interval)
-        selected_photos.append(photos[index])
-
-    return selected_photos
-
 def generate_collage_menu(photos):
     eligible_photos = [photo for photo in photos if photo.include_in_collage]
 
@@ -460,11 +440,11 @@ def generate_collage_menu(photos):
         # User wants to specify individual photo size
         # Present standard photo sizes or allow custom
         standard_photo_sizes = ["1x1", "2x2", "3x3", "4x4", "5x5"]
-        options = standard_photo_sizes + ["Custom size"]
-        terminal_menu = TerminalMenu(options, title="Select Individual Photo Size (in inches)")
+        options_photo_size = standard_photo_sizes + ["Custom size"]
+        terminal_menu = TerminalMenu(options_photo_size, title="Select Individual Photo Size (in inches)")
         size_index = terminal_menu.show()
 
-        if size_index == len(options) - 1 or size_index is None:
+        if size_index == len(options_photo_size) - 1 or size_index is None:
             # Custom size
             width_input = input("Enter custom photo width (in inches): ")
             height_input = input("Enter custom photo height (in inches): ")
@@ -478,33 +458,70 @@ def generate_collage_menu(photos):
             size_str = standard_photo_sizes[size_index]
             photo_width_in, photo_height_in = map(float, size_str.split('x'))
 
-        # Now, suggest several different sizes of the collage that would be suitable
-        # Calculate possible grid dimensions based on the number of photos
-        max_rows = total_photos
-        possible_grid_dimensions = []
-        for rows in range(1, max_rows + 1):
-            cols = (total_photos + rows - 1) // rows  # Ceiling division
-            collage_width_in = cols * photo_width_in
-            collage_height_in = rows * photo_height_in
-            possible_grid_dimensions.append((rows, cols, collage_width_in, collage_height_in))
-
-        print("\nPossible collage sizes based on your photo size:")
-        for i, (rows, cols, collage_width_in, collage_height_in) in enumerate(possible_grid_dimensions):
-            print(f"{i+1}. {rows} rows x {cols} columns - {collage_width_in}\" x {collage_height_in}\"")
-
-        selection_input = input("Select a collage size option by number, or enter 'c' to cancel: ")
-        if selection_input.lower() == 'c':
-            return
-        try:
-            selection_index = int(selection_input) - 1
-            if selection_index < 0 or selection_index >= len(possible_grid_dimensions):
-                print("Invalid selection.")
+        # Now, suggest standard collage sizes that fit perfectly with the photo size
+        standard_print_sizes = [
+            "4x6", "5x7", "8x10", "11x14", "12x18", "16x20", "20x30", "4x4", "8x8", "12x12", "12x36"
+        ]
+        possible_collage_options = []
+        for size_str in standard_print_sizes:
+            collage_width_in, collage_height_in = map(float, size_str.split('x'))
+            for orientation in ['portrait', 'landscape']:
+                if orientation == 'portrait' and collage_width_in > collage_height_in:
+                    collage_width_in, collage_height_in = collage_height_in, collage_width_in
+                elif orientation == 'landscape' and collage_width_in < collage_height_in:
+                    collage_width_in, collage_height_in = collage_height_in, collage_width_in
+                # Check if the photo size fits perfectly into the collage size
+                cols = collage_width_in / photo_width_in
+                rows = collage_height_in / photo_height_in
+                if cols.is_integer() and rows.is_integer():
+                    cols = int(cols)
+                    rows = int(rows)
+                    total_cells = rows * cols
+                    if total_cells <= total_photos:
+                        possible_collage_options.append((size_str, orientation, rows, cols, collage_width_in, collage_height_in))
+        if not possible_collage_options:
+            print("No standard collage sizes fit your photo size and number of photos.")
+            # Optionally, allow user to enter custom collage size
+            custom_size_input = input("Do you want to enter a custom collage size? (yes/no): ")
+            if custom_size_input.lower() == 'yes':
+                width_input = input("Enter custom collage width (in inches): ")
+                height_input = input("Enter custom collage height (in inches): ")
+                try:
+                    collage_width_in = float(width_input)
+                    collage_height_in = float(height_input)
+                except ValueError:
+                    print("Invalid input. Please enter numeric values.")
+                    return
+                # Check if the photo size fits perfectly into the collage size
+                cols = collage_width_in / photo_width_in
+                rows = collage_height_in / photo_height_in
+                if cols.is_integer() and rows.is_integer():
+                    cols = int(cols)
+                    rows = int(rows)
+                    total_cells = rows * cols
+                    if total_cells <= total_photos:
+                        # Proceed with this configuration
+                        orientation = 'custom'
+                    else:
+                        print("Not enough photos to fill this collage size.")
+                        return
+                else:
+                    print("Photo size does not fit perfectly into the collage size.")
+                    return
+            else:
                 return
-        except ValueError:
-            print("Invalid input.")
-            return
+        else:
+            print("\nPossible collage sizes based on your photo size:")
+            options_collage = []
+            for i, (size_str, orientation, rows, cols, collage_width_in, collage_height_in) in enumerate(possible_collage_options):
+                options_collage.append(f"{i+1}. {size_str} ({orientation}), {rows} rows x {cols} columns")
+            terminal_menu = TerminalMenu(options_collage, title="Select a Collage Size Option")
+            selection_index = terminal_menu.show()
+            if selection_index is None:
+                return
+            size_str, orientation, rows, cols, collage_width_in, collage_height_in = possible_collage_options[selection_index]
 
-        rows, cols, collage_width_in, collage_height_in = possible_grid_dimensions[selection_index]
+        # Now, proceed with the selected collage configuration
 
     elif menu_entry_index == 1:
         # User wants to specify overall collage size
@@ -512,11 +529,11 @@ def generate_collage_menu(photos):
         standard_print_sizes = [
             "4x6", "5x7", "8x10", "11x14", "12x18", "16x20", "20x30", "4x4", "8x8", "12x12", "12x36"
         ]
-        options = standard_print_sizes + ["Custom size"]
-        terminal_menu = TerminalMenu(options, title="Select Overall Collage Size (in inches)")
+        options_print_size = standard_print_sizes + ["Custom size"]
+        terminal_menu = TerminalMenu(options_print_size, title="Select Overall Collage Size (in inches)")
         size_index = terminal_menu.show()
 
-        if size_index == len(options) - 1 or size_index is None:
+        if size_index == len(options_print_size) - 1 or size_index is None:
             # Custom size
             width_input = input("Enter custom collage width (in inches): ")
             height_input = input("Enter custom collage height (in inches): ")
@@ -527,7 +544,7 @@ def generate_collage_menu(photos):
                 print("Invalid input. Please enter numeric values.")
                 return
         else:
-            size_str = options[size_index]
+            size_str = options_print_size[size_index]
             collage_width_in, collage_height_in = map(float, size_str.split('x'))
 
         # Ask for orientation if width != height
@@ -569,8 +586,17 @@ def generate_collage_menu(photos):
             except ValueError:
                 print("Invalid input. Please enter numeric values.")
                 return
-            cols = int(collage_width_in / photo_width_in)
-            rows = int(collage_height_in / photo_height_in)
+            cols = collage_width_in / photo_width_in
+            rows = collage_height_in / photo_height_in
+            if not cols.is_integer() or not rows.is_integer():
+                print("Photo size does not fit perfectly into the collage size.")
+                return
+            cols = int(cols)
+            rows = int(rows)
+            total_cells = rows * cols
+            if total_cells > total_photos:
+                print(f"Not enough photos to fill the grid ({total_cells} cells needed, but only {total_photos} photos available).")
+                return
         elif grid_config_index == 1:
             # Specify number of rows
             rows_input = input("Enter number of rows: ")
@@ -581,7 +607,15 @@ def generate_collage_menu(photos):
                 return
             photo_height_in = collage_height_in / rows
             photo_width_in = photo_height_in  # Assuming square photos
-            cols = int(collage_width_in / photo_width_in)
+            cols = collage_width_in / photo_width_in
+            if not cols.is_integer():
+                print("The number of columns is not an integer with the given number of rows and collage dimensions.")
+                return
+            cols = int(cols)
+            total_cells = rows * cols
+            if total_cells > total_photos:
+                print(f"Not enough photos to fill the grid ({total_cells} cells needed, but only {total_photos} photos available).")
+                return
         elif grid_config_index == 2:
             # Specify number of columns
             cols_input = input("Enter number of columns: ")
@@ -592,7 +626,15 @@ def generate_collage_menu(photos):
                 return
             photo_width_in = collage_width_in / cols
             photo_height_in = photo_width_in  # Assuming square photos
-            rows = int(collage_height_in / photo_height_in)
+            rows = collage_height_in / photo_height_in
+            if not rows.is_integer():
+                print("The number of rows is not an integer with the given number of columns and collage dimensions.")
+                return
+            rows = int(rows)
+            total_cells = rows * cols
+            if total_cells > total_photos:
+                print(f"Not enough photos to fill the grid ({total_cells} cells needed, but only {total_photos} photos available).")
+                return
 
     else:
         return
