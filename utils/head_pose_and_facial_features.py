@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import logging
-import math
 
 mp_face_mesh = mp.solutions.face_mesh
 
@@ -11,6 +10,7 @@ def estimate_head_pose_and_facial_features(image_path):
     if image is None:
         logging.warning(f"Image {image_path} is unreadable.")
         return None
+
     height, width, _ = image.shape
 
     # Camera internals
