@@ -82,6 +82,24 @@ def select_album():
     selected_album = albums[menu_entry_index]
     return selected_album
 
+def parse_creation_time(creation_time_str):
+    # Try parsing with milliseconds
+    try:
+        timestamp = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        return timestamp
+    except ValueError:
+        pass  # Try next format
+
+    # Try parsing without milliseconds
+    try:
+        timestamp = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%SZ')
+        return timestamp
+    except ValueError:
+        pass  # All parsing attempts failed
+
+    logging.warning(f"Failed to parse creationTime: {creation_time_str}")
+    return None
+
 def create_photo_index(index_file, photos_file, album_id):
     """
     Create an index of all photos in the specified album.
@@ -100,8 +118,8 @@ def create_photo_index(index_file, photos_file, album_id):
             year = month = day = weekday = None
             date_floor_day = date_floor_week = date_floor_month = date_floor_year = None
             if creationTime:
-                try:
-                    timestamp = datetime.strptime(creationTime, '%Y-%m-%dT%H:%M:%SZ')
+                timestamp = parse_creation_time(creationTime)
+                if timestamp:
                     year = timestamp.year
                     month = timestamp.month
                     day = timestamp.day
@@ -110,9 +128,8 @@ def create_photo_index(index_file, photos_file, album_id):
                     date_floor_week = date_floor_day - timedelta(days=timestamp.weekday())
                     date_floor_month = date(timestamp.year, timestamp.month, 1)
                     date_floor_year = date(timestamp.year, 1, 1)
-
-                except Exception as e:
-                    logging.warning(f"Failed to parse creationTime for {item.get('filename')}: {e}")
+                else:
+                    logging.warning(f"Timestamp is None for {item.get('filename')} after parsing creationTime: {creationTime}")
 
             # Create Photo instance
             photo = Photo(
