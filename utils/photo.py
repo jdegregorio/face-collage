@@ -1,6 +1,6 @@
 from dataclasses import dataclass, asdict
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 @dataclass
 class Photo:
@@ -25,6 +25,11 @@ class Photo:
     month: Optional[int] = None
     day: Optional[int] = None
     weekday: Optional[int] = None
+    # Floor dates
+    date_floor_day: Optional[date] = None
+    date_floor_week: Optional[date] = None
+    date_floor_month: Optional[date] = None
+    date_floor_year: Optional[date] = None
     # Processing status
     download_status: str = 'pending'  # 'pending', 'success', 'failed'
     download_error: str = ''
@@ -51,10 +56,27 @@ class Photo:
         data = asdict(self)
         if self.timestamp:
             data['timestamp'] = self.timestamp.isoformat()
+        # Serialize date objects
+        if self.date_floor_day:
+            data['date_floor_day'] = self.date_floor_day.isoformat()
+        if self.date_floor_week:
+            data['date_floor_week'] = self.date_floor_week.isoformat()
+        if self.date_floor_month:
+            data['date_floor_month'] = self.date_floor_month.isoformat()
+        if self.date_floor_year:
+            data['date_floor_year'] = self.date_floor_year.isoformat()
         return data
 
     @staticmethod
     def from_dict(data):
         if 'timestamp' in data and data['timestamp']:
             data['timestamp'] = datetime.fromisoformat(data['timestamp'])
+        if 'date_floor_day' in data and data['date_floor_day']:
+            data['date_floor_day'] = datetime.fromisoformat(data['date_floor_day']).date()
+        if 'date_floor_week' in data and data['date_floor_week']:
+            data['date_floor_week'] = datetime.fromisoformat(data['date_floor_week']).date()
+        if 'date_floor_month' in data and data['date_floor_month']:
+            data['date_floor_month'] = datetime.fromisoformat(data['date_floor_month']).date()
+        if 'date_floor_year' in data and data['date_floor_year']:
+            data['date_floor_year'] = datetime.fromisoformat(data['date_floor_year']).date()
         return Photo(**data)

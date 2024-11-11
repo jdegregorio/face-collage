@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, date
 
 from utils.google_photos_api import (
     list_albums,
@@ -19,7 +19,7 @@ from utils.photo import Photo
 from utils.filtering import (
     exclude_failed_processing_photos,
     filter_photos_by_features,
-    filter_photos_by_date,  # Added function
+    filter_photos_by_date,  # Updated function
     update_status_based_on_file_existence,
     reset_filters
 )
@@ -98,6 +98,7 @@ def create_photo_index(index_file, photos_file, album_id):
             creationTime = item.get('mediaMetadata', {}).get('creationTime')
             timestamp = None
             year = month = day = weekday = None
+            date_floor_day = date_floor_week = date_floor_month = date_floor_year = None
             if creationTime:
                 try:
                     timestamp = datetime.strptime(creationTime, '%Y-%m-%dT%H:%M:%SZ')
@@ -105,6 +106,11 @@ def create_photo_index(index_file, photos_file, album_id):
                     month = timestamp.month
                     day = timestamp.day
                     weekday = timestamp.weekday()  # Monday is 0
+                    date_floor_day = timestamp.date()  # Floor to day
+                    date_floor_week = date_floor_day - timedelta(days=timestamp.weekday())
+                    date_floor_month = date(timestamp.year, timestamp.month, 1)
+                    date_floor_year = date(timestamp.year, 1, 1)
+
                 except Exception as e:
                     logging.warning(f"Failed to parse creationTime for {item.get('filename')}: {e}")
 
@@ -129,6 +135,10 @@ def create_photo_index(index_file, photos_file, album_id):
                 month=month,
                 day=day,
                 weekday=weekday,
+                date_floor_day=date_floor_day,
+                date_floor_week=date_floor_week,
+                date_floor_month=date_floor_month,
+                date_floor_year=date_floor_year,
             )
             photos.append(photo)
         else:

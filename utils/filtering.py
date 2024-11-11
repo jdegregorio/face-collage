@@ -110,60 +110,78 @@ def filter_photos_by_features(photos):
             print("Invalid selection. Please try again.")
 
 def filter_photos_by_date(photos):
-    # Collect timestamps from all photos
-    timestamps = [photo.timestamp for photo in photos if photo.timestamp]
-    if not timestamps:
-        print("No date information available for photos.")
-        return
+    # Collect floor dates from all photos
+    date_units = ['day', 'week', 'month', 'year']
+    options = [
+        "1. Day",
+        "2. Week",
+        "3. Month",
+        "4. Year",
+        "5. Return to Previous Menu"
+    ]
+    terminal_menu = TerminalMenu(options, title="Select Date Unit to Filter By")
+    while True:
+        menu_entry_index = terminal_menu.show()
+        if menu_entry_index == 4:
+            break
+        elif menu_entry_index in [0, 1, 2, 3]:
+            date_unit = date_units[menu_entry_index]
+            floor_dates = [getattr(photo, f'date_floor_{date_unit}') for photo in photos if getattr(photo, f'date_floor_{date_unit}')]
 
-    min_date = min(timestamps).date()
-    max_date = max(timestamps).date()
+            if not floor_dates:
+                print("No date information available for photos.")
+                continue
 
-    print(f"\nPhoto dates range from {min_date} to {max_date}.")
+            min_date = min(floor_dates)
+            max_date = max(floor_dates)
 
-    try:
-        start_date_input = input(f"Enter start date (YYYY-MM-DD) (or press Enter to skip): ")
-        if start_date_input.strip() != '':
-            start_date = datetime.strptime(start_date_input.strip(), '%Y-%m-%d').date()
-        else:
-            start_date = min_date
+            print(f"\nPhoto dates range from {min_date} to {max_date}.")
 
-        end_date_input = input(f"Enter end date (YYYY-MM-DD) (or press Enter to skip): ")
-        if end_date_input.strip() != '':
-            end_date = datetime.strptime(end_date_input.strip(), '%Y-%m-%d').date()
-        else:
-            end_date = max_date
-    except ValueError:
-        print("Invalid date format. Please enter dates in YYYY-MM-DD format.")
-        return
+            try:
+                start_date_input = input(f"Enter start date (YYYY-MM-DD) (or press Enter to skip): ")
+                if start_date_input.strip() != '':
+                    start_date = datetime.strptime(start_date_input.strip(), '%Y-%m-%d').date()
+                else:
+                    start_date = min_date
 
-    if start_date > end_date:
-        print("Start date must be before or equal to end date.")
-        return
+                end_date_input = input(f"Enter end date (YYYY-MM-DD) (or press Enter to skip): ")
+                if end_date_input.strip() != '':
+                    end_date = datetime.strptime(end_date_input.strip(), '%Y-%m-%d').date()
+                else:
+                    end_date = max_date
+            except ValueError:
+                print("Invalid date format. Please enter dates in YYYY-MM-DD format.")
+                continue
 
-    # Determine how many photos meet the criteria
-    photos_meeting_criteria = [photo for photo in photos if photo.timestamp and start_date <= photo.timestamp.date() <= end_date]
-    total_meeting_criteria = len(photos_meeting_criteria)
-    print(f"\nTotal photos meeting the date range: {total_meeting_criteria}")
+            if start_date > end_date:
+                print("Start date must be before or equal to end date.")
+                continue
 
-    # Determine net additional exclusions
-    currently_included = [photo for photo in photos if photo.include_in_collage]
-    photos_to_exclude = [photo for photo in currently_included if not (photo.timestamp and start_date <= photo.timestamp.date() <= end_date)]
-    net_additional_exclusions = len(photos_to_exclude)
-    print(f"Net additional photos to be excluded: {net_additional_exclusions}")
+            # Determine how many photos meet the criteria
+            photos_meeting_criteria = [photo for photo in photos if getattr(photo, f'date_floor_{date_unit}') and start_date <= getattr(photo, f'date_floor_{date_unit}') <= end_date]
+            total_meeting_criteria = len(photos_meeting_criteria)
+            print(f"\nTotal photos meeting the date range: {total_meeting_criteria}")
 
-    confirmation = input("Do you want to apply this date filter? (yes/no): ")
-    if confirmation.lower() == 'yes':
-        # Apply filtering
-        for photo in photos_to_exclude:
-            photo.include_in_collage = False
-            if photo.exclusion_reason:
-                photo.exclusion_reason += f'; Date not in range'
+            # Determine net additional exclusions
+            currently_included = [photo for photo in photos if photo.include_in_collage]
+            photos_to_exclude = [photo for photo in currently_included if not (getattr(photo, f'date_floor_{date_unit}') and start_date <= getattr(photo, f'date_floor_{date_unit}') <= end_date)]
+            net_additional_exclusions = len(photos_to_exclude)
+            print(f"Net additional photos to be excluded: {net_additional_exclusions}")
+
+            confirmation = input("Do you want to apply this date filter? (yes/no): ")
+            if confirmation.lower() == 'yes':
+                # Apply filtering
+                for photo in photos_to_exclude:
+                    photo.include_in_collage = False
+                    if photo.exclusion_reason:
+                        photo.exclusion_reason += f'; Date not in range ({date_unit})'
+                    else:
+                        photo.exclusion_reason = f"Date not in range ({date_unit})"
+                print(f"Excluded {net_additional_exclusions} photos based on date ({date_unit}) filtering.")
             else:
-                photo.exclusion_reason = "Date not in range"
-        print(f"Excluded {net_additional_exclusions} photos based on date filtering.")
-    else:
-        print("No changes made.")
+                print("No changes made.")
+        else:
+            print("Invalid selection. Please try again.")
 
 def update_status_based_on_file_existence(photos):
     processed_images = set(os.listdir(PROCESSED_IMAGES_DIR))
