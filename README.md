@@ -33,7 +33,7 @@ This project provides a user-friendly command-line interface that guides you thr
 - **Automated Photo Indexing**: Retrieve and index photo metadata from a Google Photos album.
 - **Photo Downloading, Cropping, and Resizing**: Download, crop, and resize images for face-centered compositions.
 - **Head Pose and Facial Features Estimation**: Detect faces, estimate head pose angles (yaw, pitch, roll), and extract facial features (eye and mouth openness).
-- **Collage Generation**: Create a high-resolution collage arranged by head orientation, facial openness, and time.
+- **Collage Generation**: Create a high-resolution collage using different methods for organizing the grid and sampling images.
 - **Progress Tracking**: Track and resume project stages with a built-in progress tracker.
 - **User-Friendly Interface**: A simple command-line menu to navigate through the project steps.
 - **Advanced Filtering Options**: Exclude photos based on processing failures, head pose angles, facial features, or manual exclusion.
