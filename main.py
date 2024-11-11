@@ -18,7 +18,8 @@ from utils.photo import Photo
 from utils.filtering import (
     exclude_failed_processing_photos,
     filter_photos_by_features,
-    update_status_based_on_file_existence
+    update_status_based_on_file_existence,
+    reset_filters
 )
 from config import *
 
@@ -46,6 +47,7 @@ def create_directories():
     os.makedirs(ORIGINAL_IMAGES_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(EXCLUDED_IMAGES_DIR, exist_ok=True)
+    os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs('credentials', exist_ok=True)
 
 def main_menu():
@@ -320,7 +322,8 @@ def filter_and_manage_photos(photos):
             "1. Exclude Photos with Failed Processing",
             "2. Filter Photos by Head Pose and Facial Features",
             "3. Update Status Based on File Existence",
-            "4. Return to Main Menu"
+            "4. Reset All Filters",
+            "5. Return to Main Menu"
         ]
         terminal_menu = TerminalMenu(options, title="Filter and Manage Photos")
         menu_entry_index = terminal_menu.show()
@@ -341,6 +344,11 @@ def filter_and_manage_photos(photos):
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
         elif menu_entry_index == 3:
+            # Reset All Filters
+            reset_filters(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+        elif menu_entry_index == 4:
             # Return to Main Menu
             break
         else:

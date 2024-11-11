@@ -38,6 +38,9 @@ This project provides a user-friendly command-line interface that guides you thr
 - **User-Friendly Interface**: A simple command-line menu to navigate through the project steps.
 - **Advanced Filtering Options**: Exclude photos based on processing failures, head pose angles, facial features, or manual exclusion.
 - **Manual Review and Exclusion**: Move unwanted images to an `excluded_images` folder for easy management.
+- **Reset Filters**: Reset all filters to include all photos back into the collage.
+- **Detailed Filtering Statistics**: View statistics for all photos, including those previously excluded, to make informed filtering decisions.
+- **Multiple Exclusion Reasons**: Track exclusion reasons with a consolidated summary when multiple criteria exclude a photo.
 
 ---
 
@@ -54,9 +57,12 @@ super_collage_project/
 ├── data/
 │   ├── photos.json              # Serialized metadata and processing state for each photo
 │   ├── index.csv                # CSV report of the latest photo statuses
+│   ├── progress.log             # Log file to track project progress
 │   ├── original/                # Original downloaded images
 │   ├── processed_images/        # Cropped and resized face images
-│   └── progress.log             # Log file to track project progress
+│   ├── excluded_images/         # Manually excluded images
+│   └── logs/
+│       └── app.log              # Application logs
 ├── output/
 │   └── final_collage.jpg        # The resulting collage image
 ├── utils/                       # Helper scripts
@@ -64,8 +70,10 @@ super_collage_project/
 │   ├── face_detection.py        # Functions for face detection and cropping
 │   ├── head_pose_and_facial_features.py # Combined head pose and facial features estimation
 │   ├── collage_utils.py         # Collage creation functions
+│   ├── filtering.py             # Filtering functions
 │   ├── photo.py                 # Custom class for photo metadata and processing state
-│   └── progress_tracker.py      # Progress tracking utility
+│   ├── progress_tracker.py      # Progress tracking utility
+│   └── image_utils.py           # Additional image utilities
 └── credentials/
     └── client_secrets.json      # Google API OAuth credentials
 ```
@@ -141,21 +149,33 @@ Once the application is launched, you’ll see a menu-driven interface that guid
    - The system will estimate yaw, pitch, and roll angles for each face image and also extract metrics such as eye openness and mouth openness.
    - This data is saved in `data/photos.json`.
 
-4. **Generate Collage**:
+4. **Filter and Manage Photos**:
 
-   - After head pose and facial feature estimation, this option arranges the images into a collage.
+   - **Exclude Photos with Failed Processing**:
+     - Exclude photos where face detection, head pose estimation, or facial features couldn't be processed.
+   - **Filter Photos by Head Pose and Facial Features**:
+     - Filter photos based on ranges of yaw, pitch, average eye openness, and mouth openness.
+     - The application provides statistical summaries for all photos to guide range selection and shows how many photos meet criteria and net additional exclusions.
+   - **Update Status Based on Manual Exclusions**:
+     - Update photo statuses based on any manual movement of files to the `excluded_images` folder.
+   - **Reset All Filters**:
+     - Resets all applied filters, including manual exclusions, to include all photos back into the collage.
+
+5. **Generate Collage**:
+
+   - After filtering, select this option to arrange the images into a collage.
    - Images are placed on a grid based on head orientation, facial openness, and time (timestamp).
    - The collage is saved to `output/final_collage.jpg`.
 
-5. **View Progress**:
+6. **View Progress**:
 
-   - Displays the current progress and stage of the project.
+   - Displays the current progress and stage of the project, including statistics on included and excluded images.
 
-6. **Reset Project**:
+7. **Reset Project**:
 
    - Resets the project, deleting all progress and processed data.
 
-7. **Exit**:
+8. **Exit**:
 
    - Exits the application.
 
@@ -173,8 +193,11 @@ The application is designed to support resumability. Progress is tracked in `dat
 - **If Head Pose and Facial Features Estimation was Interrupted**:
   - Select "Perform Head Pose and Facial Features Estimation" to continue from the last completed image.
 
+- **If Ready to Filter and Manage Photos**:
+  - Use the "Filter and Manage Photos" option to exclude unwanted photos before generating the collage.
+
 - **If Ready to Generate the Collage**:
-  - Ensure all photos have completed head pose and facial features estimation, then select "Generate Collage".
+  - Ensure all desired photos are included, then select "Generate Collage".
 
 ---
 
@@ -183,9 +206,11 @@ The application is designed to support resumability. Progress is tracked in `dat
 All key parameters and settings are stored in `config.py`. You can adjust the following:
 
 - **Delete Original Images**: Set `DELETE_ORIGINAL_AFTER_PROCESSING = True` to delete the raw photos after processing.
-- **Image Size**: Controls the size to which each face image will be resized (default: 256x256).
+- **Image Size**: Controls the size to which each
+
+ face image will be resized (default: 256x256).
 - **Collage Dimensions**: Width and height of the final collage image.
-- **Logging Level**: Set to `DEBUG` for detailed logs, or `INFO` for standard logs.
+- **Logging Level**: Set to `'DEBUG'` for detailed logs or `'ERROR'` for minimal logs.
 
 ---
 
@@ -197,10 +222,13 @@ All key parameters and settings are stored in `config.py`. You can adjust the fo
 
 - **Progress Log Not Updating**:
   - Make sure the application has write access to the `data/` directory.
-  - Check for any error messages in `progress.log`.
+  - Check for any error messages in `data/logs/app.log`.
 
 - **Insufficient Disk Space**:
   - To manage storage, set `DELETE_ORIGINAL_AFTER_PROCESSING = True` to remove original photos after processing.
+
+- **Missing or Excluded Images**:
+  - If images are missing from the collage, ensure they are present in `data/processed_images/` and included in the project.
 
 ---
 
