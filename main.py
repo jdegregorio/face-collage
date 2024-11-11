@@ -401,6 +401,10 @@ def main():
 
         elif selection == 5:
             # View Progress
+            if os.path.exists(PHOTOS_FILE):
+                photos = load_photos(PHOTOS_FILE)
+            else:
+                photos = []
             tracker.display_progress(photos)
             input("\nPress Enter to return to the main menu...")
 
