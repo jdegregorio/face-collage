@@ -51,6 +51,7 @@ class Photo:
     mouth_openness: Optional[float] = None
     original_image_path: str = ''
     processed_image_path: str = ''
+    actual_expansion: Optional[float] = None  # New field
 
     def to_dict(self):
         data = asdict(self)

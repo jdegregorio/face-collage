@@ -34,32 +34,49 @@ def process_single_image(photo):
     bbox_width = int(bbox.width * width)
     bbox_height = int(bbox.height * height)
 
-    # Expand the bounding box based on INITIAL_BBOX_EXPANSION
-    expansion = INITIAL_BBOX_EXPANSION
-    x_min = max(int(x_min - bbox_width * expansion / 2), 0)
-    y_min = max(int(y_min - bbox_height * expansion / 2), 0)
-    x_max = min(int(x_min + bbox_width * (1 + expansion)), width)
-    y_max = min(int(y_min + bbox_height * (1 + expansion)), height)
+    # Desired expansion in pixels
+    desired_expansion_w = int(bbox_width * INITIAL_BBOX_EXPANSION)
+    desired_expansion_h = int(bbox_height * INITIAL_BBOX_EXPANSION)
 
-    face_image = image[y_min:y_max, x_min:x_max].copy()
+    # Calculate maximum possible expansion without going outside image boundaries
+    max_expand_left = x_min
+    max_expand_right = width - (x_min + bbox_width)
+    max_expand_up = y_min
+    max_expand_down = height - (y_min + bbox_height)
 
-    # Ensure the face is centered in the image
-    face_height, face_width = face_image.shape[:2]
-    desired_size = max(face_width, face_height)
-    delta_w = desired_size - face_width
-    delta_h = desired_size - face_height
-    top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-    left, right = delta_w // 2, delta_w - (delta_w // 2)
-    color = [0, 0, 0]
-    face_image = cv2.copyMakeBorder(face_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+    # Actual expansion to apply
+    expand_left = min(desired_expansion_w // 2, max_expand_left)
+    expand_right = min(desired_expansion_w - expand_left, max_expand_right)
+    expand_up = min(desired_expansion_h // 2, max_expand_up)
+    expand_down = min(desired_expansion_h - expand_up, max_expand_down)
 
-    # Resize face image
-    pil_image = Image.fromarray(cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB))
-    pil_image = pil_image.resize((IMAGE_SIZE, IMAGE_SIZE))
+    # Adjust x_min, y_min, x_max, y_max
+    x_min_new = x_min - expand_left
+    x_max_new = x_min + bbox_width + expand_right
+    y_min_new = y_min - expand_up
+    y_max_new = y_min + bbox_height + expand_down
+
+    # Calculate actual bounding box size
+    actual_bbox_width = x_max_new - x_min_new
+    actual_bbox_height = y_max_new - y_min_new
+
+    # Calculate actual expansion ratio
+    expansion_w = (actual_bbox_width - bbox_width) / bbox_width
+    expansion_h = (actual_bbox_height - bbox_height) / bbox_height
+    actual_expansion_ratio = (expansion_w + expansion_h) / 2
+
+    # Update photo with actual expansion applied
+    photo.actual_expansion = actual_expansion_ratio
+
+    # Crop the image
+    face_image = image[y_min_new:y_max_new, x_min_new:x_max_new].copy()
+
+    # Resize face image to desired IMAGE_SIZE
+    face_image = cv2.resize(face_image, (IMAGE_SIZE, IMAGE_SIZE), interpolation=cv2.INTER_AREA)
 
     # Save processed image using photo.id
     output_filename = f"{photo.id}.jpg"
     output_path = os.path.join(processed_images_dir, output_filename)
-    pil_image.save(output_path, format='JPEG', quality=95)
+    cv2.imwrite(output_path, face_image)
     logging.info(f"Processed and saved {output_filename}")
     return output_path

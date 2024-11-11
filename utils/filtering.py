@@ -35,7 +35,8 @@ def filter_photos_by_features(photos):
         'yaw': [],
         'pitch': [],
         'avg_eye_openness': [],
-        'mouth_openness': []
+        'mouth_openness': [],
+        'actual_expansion': []
     }
     for photo in photos:
         if photo.head_pose_estimation_status == 'success':
@@ -43,6 +44,8 @@ def filter_photos_by_features(photos):
             features['pitch'].append(photo.pitch)
             features['avg_eye_openness'].append(photo.avg_eye_openness)
             features['mouth_openness'].append(photo.mouth_openness)
+            if photo.actual_expansion is not None:
+                features['actual_expansion'].append(photo.actual_expansion)
 
     # Calculate percentiles
     percentiles = {}
@@ -58,22 +61,23 @@ def filter_photos_by_features(photos):
         "2. Pitch",
         "3. Average Eye Openness",
         "4. Mouth Openness",
-        "5. Return to Previous Menu"
+        "5. Actual Expansion",
+        "6. Return to Previous Menu"
     ]
     terminal_menu = TerminalMenu(options, title="Select a Feature to Filter By")
     while True:
         menu_entry_index = terminal_menu.show()
-        if menu_entry_index == 4 or menu_entry_index is None:
+        if menu_entry_index == 5 or menu_entry_index is None:
             break
-        elif menu_entry_index in [0, 1, 2, 3]:
-            feature_names = ['yaw', 'pitch', 'avg_eye_openness', 'mouth_openness']
+        elif menu_entry_index in [0, 1, 2, 3, 4]:
+            feature_names = ['yaw', 'pitch', 'avg_eye_openness', 'mouth_openness', 'actual_expansion']
             feature = feature_names[menu_entry_index]
             if len(percentiles[feature]) == 0:
                 print(f"No data available for {feature}.")
                 continue
             print(f"\nPercentiles for {feature} (calculated from all photos):")
             for i, percentile in enumerate([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]):
-                print(f"{percentile}th percentile: {percentiles[feature][i]:.2f}")
+                print(f"{percentile}th percentile: {percentiles[feature][i]:.4f}")
             try:
                 min_input = input(f"Enter minimum value for {feature} (or press Enter to skip): ")
                 min_value = float(min_input) if min_input.strip() != '' else -np.inf
@@ -99,10 +103,11 @@ def filter_photos_by_features(photos):
                 # Apply filtering
                 for photo in photos_to_exclude:
                     photo.include_in_collage = False
+                    reason = f"{feature} not in range"
                     if photo.exclusion_reason:
-                        photo.exclusion_reason += f'; {feature} not in range'
+                        photo.exclusion_reason += f'; {reason}'
                     else:
-                        photo.exclusion_reason = f"{feature} not in range"
+                        photo.exclusion_reason = reason
                 print(f"Excluded {net_additional_exclusions} photos based on {feature} filtering.")
             else:
                 print("No changes made.")
