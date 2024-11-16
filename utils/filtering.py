@@ -238,6 +238,8 @@ def sample_photos_temporally(photos, total_needed):
     """
     Selects a subset of photos maintaining temporal spacing as much as possible.
     """
+    from datetime import datetime
+
     # Sort photos by timestamp
     photos = sorted(photos, key=lambda p: p.timestamp or datetime.now())
 
@@ -245,12 +247,31 @@ def sample_photos_temporally(photos, total_needed):
     if total_needed >= len(photos):
         return photos
 
-    # Calculate the interval between selected photos
-    interval = len(photos) / total_needed
+    # Extract timestamps as floats for computation
+    timestamps = [p.timestamp.timestamp() for p in photos]
+    min_timestamp = timestamps[0]
+    max_timestamp = timestamps[-1]
 
+    selected_indices = set()
     selected_photos = []
+
     for i in range(total_needed):
-        index = int(i * interval)
-        selected_photos.append(photos[index])
+        # Compute the target timestamp using percentiles
+        if total_needed > 1:
+            percentile = i / (total_needed - 1)  # Percentile between 0 and 1
+        else:
+            percentile = 0.5  # If only one photo is needed, pick the middle one
+        target_timestamp = min_timestamp + percentile * (max_timestamp - min_timestamp)
+
+        # Find the closest photo to the target timestamp that's not already selected
+        closest_index = min(
+            (j for j in range(len(timestamps)) if j not in selected_indices),
+            key=lambda j: abs(timestamps[j] - target_timestamp)
+        )
+        selected_indices.add(closest_index)
+        selected_photos.append(photos[closest_index])
+
+    # Sort the selected photos by timestamp (optional)
+    selected_photos.sort(key=lambda p: p.timestamp)
 
     return selected_photos
