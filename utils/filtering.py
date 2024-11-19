@@ -5,7 +5,7 @@ from tqdm import tqdm
 import os
 import shutil
 from config import PROCESSED_IMAGES_DIR, EXCLUDED_IMAGES_DIR
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def exclude_failed_processing_photos(photos):
     total_photos = len(photos)
@@ -187,6 +187,104 @@ def filter_photos_by_date(photos):
                 print("No changes made.")
         else:
             print("Invalid selection. Please try again.")
+
+def filter_photos_by_temporal_clustering(photos):
+    # Ask the user for the time gap parameter (in minutes)
+    time_gap_input = input("Enter the time gap (in minutes) to define clusters: ")
+    try:
+        time_gap_minutes = float(time_gap_input)
+    except ValueError:
+        print("Invalid input. Please enter a numeric value.")
+        return
+
+    time_gap = timedelta(minutes=time_gap_minutes)
+
+    # Filter photos that are included in collage
+    included_photos = [photo for photo in photos if photo.include_in_collage]
+    total_included_photos = len(included_photos)
+
+    # Photos with timestamps
+    photos_with_timestamp = [photo for photo in included_photos if photo.timestamp is not None]
+    total_photos_with_timestamp = len(photos_with_timestamp)
+
+    # Photos without timestamps
+    photos_without_timestamp = [photo for photo in included_photos if photo.timestamp is None]
+    total_photos_without_timestamp = len(photos_without_timestamp)
+
+    # Print notice if any photos are missing timestamps
+    if total_photos_without_timestamp > 0:
+        percentage_missing = (total_photos_without_timestamp / total_included_photos) * 100
+        print(f"\nWarning: {total_photos_without_timestamp} out of {total_included_photos} photos ({percentage_missing:.2f}%) are missing timestamp information and cannot be processed for temporal clustering.")
+
+    if not photos_with_timestamp:
+        print("No photos with timestamp information are included in the collage. Cannot perform temporal clustering.")
+        return
+
+    # Sort photos by timestamp
+    photos_sorted = sorted(photos_with_timestamp, key=lambda p: p.timestamp)
+
+    # Initialize clusters
+    clusters = []
+    current_cluster = [photos_sorted[0]]
+
+    for i in range(1, len(photos_sorted)):
+        time_diff = photos_sorted[i].timestamp - photos_sorted[i - 1].timestamp
+        if time_diff <= time_gap:
+            current_cluster.append(photos_sorted[i])
+        else:
+            clusters.append(current_cluster)
+            current_cluster = [photos_sorted[i]]
+    # Add the last cluster
+    clusters.append(current_cluster)
+
+    # Provide statistics to the user
+    total_clusters = len(clusters)
+    print(f"\nTotal photos included in collage: {total_included_photos}")
+    print(f"Total photos with timestamp: {total_photos_with_timestamp}")
+    print(f"Number of clusters detected: {total_clusters}")
+
+    # Determine net additional exclusions
+    photos_to_exclude = []
+    for cluster in clusters:
+        if len(cluster) <= 1:
+            continue
+        # Find the photo with yaw closest to zero
+        best_photo = None
+        min_abs_yaw = None
+        for photo in cluster:
+            if photo.head_pose_estimation_status == 'success' and photo.yaw is not None:
+                abs_yaw = abs(photo.yaw)
+                if min_abs_yaw is None or abs_yaw < min_abs_yaw:
+                    min_abs_yaw = abs_yaw
+                    best_photo = photo
+
+        if best_photo is None:
+            # If no photo has yaw information, select the first one
+            best_photo = cluster[0]
+
+        # Exclude other photos in the cluster
+        for photo in cluster:
+            if photo != best_photo and photo.include_in_collage:
+                photos_to_exclude.append(photo)
+
+    net_additional_exclusions = len(photos_to_exclude)
+    percentage_excluded = (net_additional_exclusions / total_included_photos) * 100 if total_included_photos > 0 else 0
+    print(f"Total photos to be excluded due to temporal clustering: {net_additional_exclusions} ({percentage_excluded:.2f}%)")
+
+    # Ask user for confirmation
+    confirmation = input("Do you want to apply this temporal clustering filter? (yes/no): ")
+    if confirmation.lower() == 'yes':
+        for photo in photos_to_exclude:
+            photo.include_in_collage = False
+            reason = f"Excluded due to temporal clustering"
+            if photo.exclusion_reason:
+                photo.exclusion_reason += f'; {reason}'
+            else:
+                photo.exclusion_reason = reason
+        print(f"Excluded {net_additional_exclusions} photos based on temporal clustering.")
+    else:
+        print("No changes made.")
+
 
 def update_status_based_on_file_existence(photos):
     processed_images = set(os.listdir(PROCESSED_IMAGES_DIR))

@@ -6,6 +6,7 @@ from tqdm import tqdm
 import sys
 import json
 from datetime import datetime, timedelta, date
+from dateutil import parser
 
 from utils.google_photos_api import (
     list_albums,
@@ -20,6 +21,7 @@ from utils.filtering import (
     exclude_failed_processing_photos,
     filter_photos_by_features,
     filter_photos_by_date,
+    filter_photos_by_temporal_clustering,
     update_status_based_on_file_existence,
     reset_filters,
     sample_photos_temporally
@@ -83,19 +85,30 @@ def select_album():
     selected_album = albums[menu_entry_index]
     return selected_album
 
-def parse_creation_time(creation_time_str):
-    # Try parsing with milliseconds
-    try:
-        timestamp = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%S.%fZ')
-        return timestamp
-    except ValueError:
-        pass  # Try next format
 
-    # Try parsing without milliseconds
+def parse_creation_time(creation_time_str):
+    # Define possible formats
+    formats = [
+        '%Y-%m-%dT%H:%M:%S.%fZ',   # With microseconds and 'Z'
+        '%Y-%m-%dT%H:%M:%SZ',      # Without microseconds, with 'Z'
+        '%Y-%m-%dT%H:%M:%S.%f',    # With microseconds, no 'Z'
+        '%Y-%m-%dT%H:%M:%S',       # Without microseconds, no 'Z'
+        '%Y-%m-%dT%H:%M:%S%z',     # With timezone offset
+        '%Y-%m-%dT%H:%M:%S.%f%z',  # With microseconds and timezone offset
+    ]
+
+    for fmt in formats:
+        try:
+            timestamp = datetime.strptime(creation_time_str, fmt)
+            return timestamp
+        except ValueError:
+            continue  # Try next format
+
+    # As a last resort, try using dateutil parser
     try:
-        timestamp = datetime.strptime(creation_time_str, '%Y-%m-%dT%H:%M:%SZ')
+        timestamp = parser.parse(creation_time_str)
         return timestamp
-    except ValueError:
+    except (ValueError, OverflowError):
         pass  # All parsing attempts failed
 
     logging.warning(f"Failed to parse creationTime: {creation_time_str}")
@@ -371,9 +384,10 @@ def filter_and_manage_photos(photos):
             "1. Exclude Photos with Failed Processing",
             "2. Filter Photos by Head Pose and Facial Features",
             "3. Filter Photos by Date Range",
-            "4. Update Status Based on File Existence",
-            "5. Reset All Filters",
-            "6. Return to Main Menu"
+            "4. Filter Photos by Temporal Clustering",
+            "5. Update Status Based on File Existence",
+            "6. Reset All Filters",
+            "7. Return to Main Menu"
         ]
         terminal_menu = TerminalMenu(options, title="Filter and Manage Photos")
         menu_entry_index = terminal_menu.show()
@@ -394,16 +408,21 @@ def filter_and_manage_photos(photos):
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
         elif menu_entry_index == 3:
+            # Filter Photos by Temporal Clustering
+            filter_photos_by_temporal_clustering(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos, INDEX_FILE)
+        elif menu_entry_index == 4:
             # Update Status Based on File Existence
             update_status_based_on_file_existence(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
-        elif menu_entry_index == 4:
+        elif menu_entry_index == 5:
             # Reset All Filters
             reset_filters(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos, INDEX_FILE)
-        elif menu_entry_index == 5:
+        elif menu_entry_index == 6:
             # Return to Main Menu
             break
         else:
