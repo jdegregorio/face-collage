@@ -18,7 +18,8 @@ DEFAULT_DPI = 300            # Default DPI for collage generation
 
 # Paths
 DATA_DIR = os.path.join('data')
-INDEX_FILE = os.path.join(DATA_DIR, 'index.csv')
+PHOTO_INDEX_FILE = os.path.join(DATA_DIR, 'photo_index.csv')
+FACES_INDEX_FILE = os.path.join(DATA_DIR, 'faces_index.csv')
 PHOTOS_FILE = os.path.join(DATA_DIR, 'photos.json')
 PROGRESS_FILE = os.path.join(DATA_DIR, 'progress.log')
 PROCESSED_IMAGES_DIR = os.path.join(DATA_DIR, 'processed_images')
@@ -27,10 +28,10 @@ EXCLUDED_IMAGES_DIR = os.path.join(DATA_DIR, 'excluded_images')
 OUTPUT_DIR = os.path.join('output')
 LOG_DIR = os.path.join(DATA_DIR, 'logs')  # Directory for logs
 
-FACES_DIR = os.path.join(DATA_DIR, 'model')
-POSITIVE_FACES_DIR = os.path.join(FACES_DIR, 'positive')
-NEGATIVE_FACES_DIR = os.path.join(FACES_DIR, 'negative')
-CLASSIFIER_MODEL_PATH = os.path.join(FACES_DIR, 'classifier.pkl')
+MODEL_DIR = os.path.join(DATA_DIR, 'model')
+POSITIVE_FACES_DIR = os.path.join(MODEL_DIR, 'positive')
+NEGATIVE_FACES_DIR = os.path.join(MODEL_DIR, 'negative')
+CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'classifier.pkl')
 
 # Processing settings
 DELETE_ORIGINAL_AFTER_PROCESSING = True  # Set to False to keep original images after processing

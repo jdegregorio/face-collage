@@ -48,9 +48,6 @@ def train_classifier(positive_dir, negative_dir, classifier_path):
     print(f"Classifier saved to {classifier_path}")
 
 def classify_faces(faces, classifier_path):
-    """
-    Classify faces using the trained classifier.
-    """
     classifier = joblib.load(classifier_path)
 
     for face in tqdm(faces, desc="Classifying faces", unit="face"):
@@ -61,8 +58,8 @@ def classify_faces(faces, classifier_path):
             label = classifier.predict(embedding)[0]
             confidence = probabilities[0][label]
             face.classification_status = 'success'
-            face.classification_label = label
-            face.classification_confidence = confidence
+            face.classification_label = int(label)  # Convert to native int
+            face.classification_confidence = float(confidence)  # Convert to native float
         else:
             face.classification_status = 'failed'
             face.classification_label = None

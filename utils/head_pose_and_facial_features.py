@@ -71,6 +71,9 @@ def estimate_head_pose_and_facial_features(image_path):
         # Decompose projection matrix to get Euler angles
         _, _, _, _, _, _, euler_angles = cv2.decomposeProjectionMatrix(proj_matrix)
         pitch, yaw, roll = euler_angles.flatten()
+        pitch = float(pitch)
+        yaw = float(yaw)
+        roll = float(roll)
 
         # Extract facial features
         facial_features = {}
@@ -78,11 +81,11 @@ def estimate_head_pose_and_facial_features(image_path):
         # Eye openness
         left_eye_top = landmarks[159]
         left_eye_bottom = landmarks[145]
-        left_eye_openness = abs(left_eye_top.y - left_eye_bottom.y) * height
+        left_eye_openness = float(abs(left_eye_top.y - left_eye_bottom.y) * height)
 
         right_eye_top = landmarks[386]
         right_eye_bottom = landmarks[374]
-        right_eye_openness = abs(right_eye_top.y - right_eye_bottom.y) * height
+        right_eye_openness = float(abs(right_eye_top.y - right_eye_bottom.y) * height)
 
         avg_eye_openness = (left_eye_openness + right_eye_openness) / 2
 
@@ -93,7 +96,7 @@ def estimate_head_pose_and_facial_features(image_path):
         # Mouth openness
         upper_lip = landmarks[13]
         lower_lip = landmarks[14]
-        mouth_openness = abs(upper_lip.y - lower_lip.y) * height
+        mouth_openness = float(abs(upper_lip.y - lower_lip.y) * height)
 
         facial_features['mouth_openness'] = mouth_openness
 

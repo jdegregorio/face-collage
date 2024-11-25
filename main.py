@@ -60,7 +60,7 @@ def create_directories():
     os.makedirs(EXCLUDED_IMAGES_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs('credentials', exist_ok=True)
-    os.makedirs(FACES_DIR, exist_ok=True)
+    os.makedirs(MODEL_DIR, exist_ok=True)
     os.makedirs(POSITIVE_FACES_DIR, exist_ok=True)
     os.makedirs(NEGATIVE_FACES_DIR, exist_ok=True)
 
@@ -189,7 +189,7 @@ def create_photo_index(index_file, photos_file, album_id):
     logging.info(f"Photo data saved to {photos_file}")
 
     # Save index to CSV for reporting
-    update_index_csv(photos, index_file)
+    update_index_csv(photos)
     print(f"Indexed {len(photos)} photos from the album.")
 
 def save_photos(photos, file_path):
@@ -205,10 +205,47 @@ def load_photos(file_path):
     else:
         return []
 
-def update_index_csv(photos, index_file):
-    df = pd.DataFrame([photo.to_dict() for photo in photos])
-    df.to_csv(index_file, index=False)
-    logging.info(f"Photo index updated and saved to {index_file}")
+def update_index_csv(photos):
+    # Photos index
+    photos_df = pd.DataFrame([photo.to_dict() for photo in photos])
+
+    # Convert timestamp and date fields to strings in photos_df
+    date_columns = ['timestamp', 'date_floor_day', 'date_floor_week', 'date_floor_month', 'date_floor_year']
+    for col in date_columns:
+        if col in photos_df.columns:
+            photos_df[col] = photos_df[col].astype(str)
+
+    photos_df.to_csv(PHOTO_INDEX_FILE, index=False)
+    logging.info(f"Photo index updated and saved to {PHOTO_INDEX_FILE}")
+
+    # Faces index
+    faces_data = []
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                face_dict = face.to_dict()
+                # Add photo-level data to face dict
+                face_dict['photo_id'] = photo.id
+                face_dict['photo_filename'] = photo.filename
+                face_dict['photo_timestamp'] = photo.timestamp
+                face_dict['photo_date_floor_day'] = photo.date_floor_day
+                face_dict['photo_date_floor_week'] = photo.date_floor_week
+                face_dict['photo_date_floor_month'] = photo.date_floor_month
+                face_dict['photo_date_floor_year'] = photo.date_floor_year
+                faces_data.append(face_dict)
+    if faces_data:
+        faces_df = pd.DataFrame(faces_data)
+
+        # Convert timestamp and date fields to strings in faces_df
+        date_columns = ['photo_timestamp', 'photo_date_floor_day', 'photo_date_floor_week', 'photo_date_floor_month', 'photo_date_floor_year']
+        for col in date_columns:
+            if col in faces_df.columns:
+                faces_df[col] = faces_df[col].astype(str)
+
+        faces_df.to_csv(FACES_INDEX_FILE, index=False)
+        logging.info(f"Faces index updated and saved to {FACES_INDEX_FILE}")
+    else:
+        logging.info("No faces data to save to faces index CSV.")
 
 def download_and_process_photos(photos):
     """
@@ -242,7 +279,7 @@ def download_and_process_photos(photos):
                         photo.original_image_path = ''
                     # Save progress and continue to next photo
                     save_photos(photos, PHOTOS_FILE)
-                    update_index_csv(photos, INDEX_FILE)
+                    update_index_csv(photos)
                     continue  # Skip to next photo
 
             # Process image and extract faces
@@ -258,7 +295,7 @@ def download_and_process_photos(photos):
                     logging.warning(f"No faces detected in photo {photo.filename}")
                 # Save progress and continue to next photo
                 save_photos(photos, PHOTOS_FILE)
-                update_index_csv(photos, INDEX_FILE)
+                update_index_csv(photos)
 
             # Delete original image if configured
             if DELETE_ORIGINAL_AFTER_PROCESSING and os.path.exists(photo.original_image_path):
@@ -277,7 +314,7 @@ def download_and_process_photos(photos):
                 photo.original_image_path = ''
             # Save progress and continue to next photo
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
             continue  # Skip to next photo
 
 def train_custom_classifier(photos):
@@ -322,7 +359,7 @@ def classify_all_faces(photos):
 
     # Save updated photos
     save_photos(photos, PHOTOS_FILE)
-    update_index_csv(photos, INDEX_FILE)
+    update_index_csv(photos)
 
 def reset_project(tracker):
     """
@@ -354,19 +391,21 @@ def reset_project(tracker):
                 if os.path.isfile(file_path):
                     os.remove(file_path)
 
-        # Delete faces
-        if os.path.exists(FACES_DIR):
-            for root, dirs, files in os.walk(FACES_DIR):
-                for file in files:
-                    os.remove(os.path.join(root, file))
+        # # Delete model directory
+        # if os.path.exists(MODEL_DIR):
+        #     for root, dirs, files in os.walk(MODEL_DIR):
+        #         for file in files:
+        #             os.remove(os.path.join(root, file))
 
         # Delete classifier model
         if os.path.exists(CLASSIFIER_MODEL_PATH):
             os.remove(CLASSIFIER_MODEL_PATH)
 
-        # Delete index file
-        if os.path.exists(INDEX_FILE):
-            os.remove(INDEX_FILE)
+        # Delete index files
+        if os.path.exists(PHOTO_INDEX_FILE):
+            os.remove(PHOTO_INDEX_FILE)
+        if os.path.exists(FACES_INDEX_FILE):
+            os.remove(FACES_INDEX_FILE)
 
         # Delete photos data file
         if os.path.exists(PHOTOS_FILE):
@@ -400,37 +439,37 @@ def filter_and_manage_photos(photos):
             # Exclude Photos with Failed Processing
             exclude_failed_processing_photos(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 1:
             # Filter Faces by Head Pose and Facial Features
             filter_photos_by_features(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 2:
             # Filter Faces by Date Range
             filter_photos_by_date(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 3:
             # Filter Faces by Temporal Clustering
             filter_photos_by_temporal_clustering(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 4:
             # Filter Faces by Classifier
             filter_faces_by_classifier(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 5:
             # Update Status Based on File Existence
             update_status_based_on_file_existence(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 6:
             # Reset All Filters
             reset_filters(photos)
             save_photos(photos, PHOTOS_FILE)
-            update_index_csv(photos, INDEX_FILE)
+            update_index_csv(photos)
         elif menu_entry_index == 7:
             # Return to Main Menu
             break
@@ -471,7 +510,7 @@ def main():
             selected_album = select_album()
             if selected_album:
                 album_id = selected_album['id']
-                create_photo_index(INDEX_FILE, PHOTOS_FILE, album_id)
+                create_photo_index(PHOTO_INDEX_FILE, PHOTOS_FILE, album_id)
                 tracker.update_stage('Indexing Completed')
             else:
                 print("No album selected.")
