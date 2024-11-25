@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
+from utils.face import Face
 
 @dataclass
 class Photo:
@@ -33,25 +34,15 @@ class Photo:
     # Processing status
     download_status: str = 'pending'  # 'pending', 'success', 'failed'
     download_error: str = ''
-    face_detection_status: str = 'pending'  # 'pending', 'success', 'failed'
+    faces_detected: bool = False
     face_detection_error: str = ''
-    head_pose_estimation_status: str = 'pending'  # 'pending', 'success', 'failed'
-    head_pose_estimation_error: str = ''
-    facial_features_status: str = 'pending'  # 'pending', 'success', 'failed'
+    # Faces in the photo
+    face_list: Optional[List[Face]] = None
     # Inclusion status
     include_in_collage: bool = True  # Whether to include in the collage
     exclusion_reason: Optional[str] = ''
-    # Processing results
-    yaw: Optional[float] = None
-    pitch: Optional[float] = None
-    roll: Optional[float] = None
-    left_eye_openness: Optional[float] = None
-    right_eye_openness: Optional[float] = None
-    avg_eye_openness: Optional[float] = None
-    mouth_openness: Optional[float] = None
+    # File paths
     original_image_path: str = ''
-    processed_image_path: str = ''
-    actual_expansion: Optional[float] = None  # New field
 
     def to_dict(self):
         data = asdict(self)
@@ -66,6 +57,9 @@ class Photo:
             data['date_floor_month'] = self.date_floor_month.isoformat()
         if self.date_floor_year:
             data['date_floor_year'] = self.date_floor_year.isoformat()
+        # Serialize faces
+        if self.face_list:
+            data['face_list'] = [face.to_dict() for face in self.face_list]
         return data
 
     @staticmethod
@@ -80,4 +74,7 @@ class Photo:
             data['date_floor_month'] = datetime.fromisoformat(data['date_floor_month']).date()
         if 'date_floor_year' in data and data['date_floor_year']:
             data['date_floor_year'] = datetime.fromisoformat(data['date_floor_year']).date()
+        # Deserialize faces
+        if 'face_list' in data and data['face_list']:
+            data['face_list'] = [Face.from_dict(face_data) for face_data in data['face_list']]
         return Photo(**data)

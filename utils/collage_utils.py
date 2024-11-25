@@ -2,9 +2,9 @@ import logging
 from PIL import Image
 import os
 
-def generate_collage(photos, output_path, options):
+def generate_collage(faces, output_path, options):
     """
-    Generates a collage image from the given photos and saves it to output_path.
+    Generates a collage image from the given faces and saves it to output_path.
     """
     collage_width_px = options['collage_width_px']
     collage_height_px = options['collage_height_px']
@@ -17,21 +17,21 @@ def generate_collage(photos, output_path, options):
     # Create a blank image for the collage
     collage_image = Image.new('RGB', (collage_width_px, collage_height_px), color='white')
 
-    # Resize photos to the specified photo dimensions
-    resized_photos = []
-    for photo in photos:
-        img = Image.open(photo.processed_image_path)
+    # Resize faces to the specified photo dimensions
+    resized_faces = []
+    for face in faces:
+        img = Image.open(face.image_path)
         img_resized = img.resize((photo_width_px, photo_height_px))
-        resized_photos.append(img_resized)
+        resized_faces.append(img_resized)
 
-    # Arrange photos on the grid according to the wrap method
+    # Arrange faces on the grid according to the wrap method
     index = 0
-    total_photos = len(resized_photos)
+    total_faces = len(resized_faces)
     for row in range(rows):
         for col in range(cols):
-            if index >= total_photos:
+            if index >= total_faces:
                 break
-            photo_img = resized_photos[index]
+            face_img = resized_faces[index]
 
             # Calculate position based on wrap method
             if wrap_method == 'lr_down':
@@ -56,7 +56,7 @@ def generate_collage(photos, output_path, options):
                 x = col * photo_width_px
                 y = row * photo_height_px
 
-            collage_image.paste(photo_img, (int(x), int(y)))
+            collage_image.paste(face_img, (int(x), int(y)))
             index += 1
 
     # Save the collage image

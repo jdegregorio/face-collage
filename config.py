@@ -27,6 +27,11 @@ EXCLUDED_IMAGES_DIR = os.path.join(DATA_DIR, 'excluded_images')
 OUTPUT_DIR = os.path.join('output')
 LOG_DIR = os.path.join(DATA_DIR, 'logs')  # Directory for logs
 
+FACES_DIR = os.path.join(DATA_DIR, 'model')
+POSITIVE_FACES_DIR = os.path.join(FACES_DIR, 'positive')
+NEGATIVE_FACES_DIR = os.path.join(FACES_DIR, 'negative')
+CLASSIFIER_MODEL_PATH = os.path.join(FACES_DIR, 'classifier.pkl')
+
 # Processing settings
 DELETE_ORIGINAL_AFTER_PROCESSING = True  # Set to False to keep original images after processing
 

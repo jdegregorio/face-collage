@@ -8,29 +8,34 @@ from config import PROCESSED_IMAGES_DIR, EXCLUDED_IMAGES_DIR
 from datetime import datetime, timedelta
 
 def exclude_failed_processing_photos(photos):
-    total_photos = len(photos)
-    failed_photos = [photo for photo in photos if photo.face_detection_status != 'success' or photo.head_pose_estimation_status != 'success' or photo.facial_features_status != 'success']
-    failed_count = len(failed_photos)
-    failed_percentage = (failed_count / total_photos) * 100 if total_photos > 0 else 0
+    total_faces = sum(len(photo.face_list) for photo in photos if photo.face_list)
+    failed_faces = []
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                if face.head_pose_estimation_status != 'success' or face.facial_features_status != 'success':
+                    failed_faces.append(face)
+    failed_count = len(failed_faces)
+    failed_percentage = (failed_count / total_faces) * 100 if total_faces > 0 else 0
 
-    print(f"\nTotal photos: {total_photos}")
-    print(f"Photos with failed processing: {failed_count} ({failed_percentage:.2f}%)")
+    print(f"\nTotal faces: {total_faces}")
+    print(f"Faces with failed processing: {failed_count} ({failed_percentage:.2f}%)")
 
-    confirmation = input("Do you want to exclude these photos from the collage? (yes/no): ")
+    confirmation = input("Do you want to exclude these faces from the collage? (yes/no): ")
     if confirmation.lower() == 'yes':
-        for photo in failed_photos:
-            if photo.include_in_collage:
-                photo.include_in_collage = False
-                if photo.exclusion_reason:
-                    photo.exclusion_reason += '; Failed processing'
+        for face in failed_faces:
+            if face.include_in_collage:
+                face.include_in_collage = False
+                if face.exclusion_reason:
+                    face.exclusion_reason += '; Failed processing'
                 else:
-                    photo.exclusion_reason = 'Failed processing'
-        print(f"Excluded {failed_count} photos.")
+                    face.exclusion_reason = 'Failed processing'
+        print(f"Excluded {failed_count} faces.")
     else:
         print("No changes made.")
 
 def filter_photos_by_features(photos):
-    # Collect features from all photos
+    # Collect features from all faces
     features = {
         'yaw': [],
         'pitch': [],
@@ -39,13 +44,15 @@ def filter_photos_by_features(photos):
         'actual_expansion': []
     }
     for photo in photos:
-        if photo.head_pose_estimation_status == 'success':
-            features['yaw'].append(photo.yaw)
-            features['pitch'].append(photo.pitch)
-            features['avg_eye_openness'].append(photo.avg_eye_openness)
-            features['mouth_openness'].append(photo.mouth_openness)
-            if photo.actual_expansion is not None:
-                features['actual_expansion'].append(photo.actual_expansion)
+        if photo.face_list:
+            for face in photo.face_list:
+                if face.head_pose_estimation_status == 'success':
+                    features['yaw'].append(face.yaw)
+                    features['pitch'].append(face.pitch)
+                    features['avg_eye_openness'].append(face.avg_eye_openness)
+                    features['mouth_openness'].append(face.mouth_openness)
+                    if face.actual_expansion is not None:
+                        features['actual_expansion'].append(face.actual_expansion)
 
     # Calculate percentiles
     percentiles = {}
@@ -75,7 +82,7 @@ def filter_photos_by_features(photos):
             if len(percentiles[feature]) == 0:
                 print(f"No data available for {feature}.")
                 continue
-            print(f"\nPercentiles for {feature} (calculated from all photos):")
+            print(f"\nPercentiles for {feature} (calculated from all faces):")
             for i, percentile in enumerate([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]):
                 print(f"{percentile}th percentile: {percentiles[feature][i]:.4f}")
             try:
@@ -87,35 +94,48 @@ def filter_photos_by_features(photos):
                 print("Invalid input. Please enter numeric values.")
                 continue
 
-            # Determine how many photos meet the criteria
-            photos_meeting_criteria = [photo for photo in photos if photo.head_pose_estimation_status == 'success' and getattr(photo, feature) is not None and min_value <= getattr(photo, feature) <= max_value]
-            total_meeting_criteria = len(photos_meeting_criteria)
-            print(f"\nTotal photos meeting the criteria for {feature}: {total_meeting_criteria}")
+            # Determine how many faces meet the criteria
+            faces_meeting_criteria = []
+            for photo in photos:
+                if photo.face_list:
+                    for face in photo.face_list:
+                        if face.head_pose_estimation_status == 'success' and getattr(face, feature) is not None and min_value <= getattr(face, feature) <= max_value:
+                            faces_meeting_criteria.append(face)
+            total_meeting_criteria = len(faces_meeting_criteria)
+            print(f"\nTotal faces meeting the criteria for {feature}: {total_meeting_criteria}")
 
             # Determine net additional exclusions
-            currently_included = [photo for photo in photos if photo.include_in_collage]
-            photos_to_exclude = [photo for photo in currently_included if photo.head_pose_estimation_status == 'success' and getattr(photo, feature) is not None and not (min_value <= getattr(photo, feature) <= max_value)]
-            net_additional_exclusions = len(photos_to_exclude)
-            print(f"Net additional photos to be excluded: {net_additional_exclusions}")
+            currently_included = []
+            for photo in photos:
+                if photo.face_list:
+                    for face in photo.face_list:
+                        if face.include_in_collage:
+                            currently_included.append(face)
+            faces_to_exclude = []
+            for face in currently_included:
+                if face.head_pose_estimation_status == 'success' and getattr(face, feature) is not None and not (min_value <= getattr(face, feature) <= max_value):
+                    faces_to_exclude.append(face)
+            net_additional_exclusions = len(faces_to_exclude)
+            print(f"Net additional faces to be excluded: {net_additional_exclusions}")
 
             confirmation = input("Do you want to apply this filter? (yes/no): ")
             if confirmation.lower() == 'yes':
                 # Apply filtering
-                for photo in photos_to_exclude:
-                    photo.include_in_collage = False
+                for face in faces_to_exclude:
+                    face.include_in_collage = False
                     reason = f"{feature} not in range"
-                    if photo.exclusion_reason:
-                        photo.exclusion_reason += f'; {reason}'
+                    if face.exclusion_reason:
+                        face.exclusion_reason += f'; {reason}'
                     else:
-                        photo.exclusion_reason = reason
-                print(f"Excluded {net_additional_exclusions} photos based on {feature} filtering.")
+                        face.exclusion_reason = reason
+                print(f"Excluded {net_additional_exclusions} faces based on {feature} filtering.")
             else:
                 print("No changes made.")
         else:
             print("Invalid selection. Please try again.")
 
 def filter_photos_by_date(photos):
-    # Collect floor dates from all photos
+    # Collect floor dates from all faces
     date_units = ['day', 'week', 'month', 'year']
     options = [
         "1. Day",
@@ -131,16 +151,22 @@ def filter_photos_by_date(photos):
             break
         elif menu_entry_index in [0, 1, 2, 3]:
             date_unit = date_units[menu_entry_index]
-            floor_dates = [getattr(photo, f'date_floor_{date_unit}') for photo in photos if getattr(photo, f'date_floor_{date_unit}')]
+            floor_dates = []
+            for photo in photos:
+                date_value = getattr(photo, f'date_floor_{date_unit}')
+                if date_value:
+                    if photo.face_list:
+                        for face in photo.face_list:
+                            floor_dates.append(date_value)
 
             if not floor_dates:
-                print("No date information available for photos.")
+                print("No date information available for faces.")
                 continue
 
             min_date = min(floor_dates)
             max_date = max(floor_dates)
 
-            print(f"\nPhoto dates range from {min_date} to {max_date}.")
+            print(f"\nFace dates range from {min_date} to {max_date}.")
 
             try:
                 start_date_input = input(f"Enter start date (YYYY-MM-DD) (or press Enter to skip): ")
@@ -162,27 +188,42 @@ def filter_photos_by_date(photos):
                 print("Start date must be before or equal to end date.")
                 continue
 
-            # Determine how many photos meet the criteria
-            photos_meeting_criteria = [photo for photo in photos if getattr(photo, f'date_floor_{date_unit}') and start_date <= getattr(photo, f'date_floor_{date_unit}') <= end_date]
-            total_meeting_criteria = len(photos_meeting_criteria)
-            print(f"\nTotal photos meeting the date range: {total_meeting_criteria}")
+            # Determine how many faces meet the criteria
+            faces_meeting_criteria = []
+            for photo in photos:
+                date_value = getattr(photo, f'date_floor_{date_unit}')
+                if date_value and start_date <= date_value <= end_date:
+                    if photo.face_list:
+                        for face in photo.face_list:
+                            faces_meeting_criteria.append(face)
+            total_meeting_criteria = len(faces_meeting_criteria)
+            print(f"\nTotal faces meeting the date range: {total_meeting_criteria}")
 
             # Determine net additional exclusions
-            currently_included = [photo for photo in photos if photo.include_in_collage]
-            photos_to_exclude = [photo for photo in currently_included if not (getattr(photo, f'date_floor_{date_unit}') and start_date <= getattr(photo, f'date_floor_{date_unit}') <= end_date)]
-            net_additional_exclusions = len(photos_to_exclude)
-            print(f"Net additional photos to be excluded: {net_additional_exclusions}")
+            currently_included = []
+            for photo in photos:
+                if photo.face_list:
+                    for face in photo.face_list:
+                        if face.include_in_collage:
+                            currently_included.append(face)
+            faces_to_exclude = []
+            for face in currently_included:
+                date_value = getattr(photo, f'date_floor_{date_unit}')
+                if not (date_value and start_date <= date_value <= end_date):
+                    faces_to_exclude.append(face)
+            net_additional_exclusions = len(faces_to_exclude)
+            print(f"Net additional faces to be excluded: {net_additional_exclusions}")
 
             confirmation = input("Do you want to apply this date filter? (yes/no): ")
             if confirmation.lower() == 'yes':
                 # Apply filtering
-                for photo in photos_to_exclude:
-                    photo.include_in_collage = False
-                    if photo.exclusion_reason:
-                        photo.exclusion_reason += f'; Date not in range ({date_unit})'
+                for face in faces_to_exclude:
+                    face.include_in_collage = False
+                    if face.exclusion_reason:
+                        face.exclusion_reason += f'; Date not in range ({date_unit})'
                     else:
-                        photo.exclusion_reason = f"Date not in range ({date_unit})"
-                print(f"Excluded {net_additional_exclusions} photos based on date ({date_unit}) filtering.")
+                        face.exclusion_reason = f"Date not in range ({date_unit})"
+                print(f"Excluded {net_additional_exclusions} faces based on date ({date_unit}) filtering.")
             else:
                 print("No changes made.")
         else:
@@ -199,177 +240,221 @@ def filter_photos_by_temporal_clustering(photos):
 
     time_gap = timedelta(minutes=time_gap_minutes)
 
-    # Filter photos that are included in collage
-    included_photos = [photo for photo in photos if photo.include_in_collage]
-    total_included_photos = len(included_photos)
+    # Filter faces that are included in collage and have timestamps
+    included_faces = []
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                if face.include_in_collage and photo.timestamp:
+                    face.timestamp = photo.timestamp  # Assign photo timestamp to face
+                    included_faces.append(face)
 
-    # Photos with timestamps
-    photos_with_timestamp = [photo for photo in included_photos if photo.timestamp is not None]
-    total_photos_with_timestamp = len(photos_with_timestamp)
+    total_included_faces = len(included_faces)
 
-    # Photos without timestamps
-    photos_without_timestamp = [photo for photo in included_photos if photo.timestamp is None]
-    total_photos_without_timestamp = len(photos_without_timestamp)
-
-    # Print notice if any photos are missing timestamps
-    if total_photos_without_timestamp > 0:
-        percentage_missing = (total_photos_without_timestamp / total_included_photos) * 100
-        print(f"\nWarning: {total_photos_without_timestamp} out of {total_included_photos} photos ({percentage_missing:.2f}%) are missing timestamp information and cannot be processed for temporal clustering.")
-
-    if not photos_with_timestamp:
-        print("No photos with timestamp information are included in the collage. Cannot perform temporal clustering.")
+    if not included_faces:
+        print("No faces with timestamp information are included in the collage. Cannot perform temporal clustering.")
         return
 
-    # Sort photos by timestamp
-    photos_sorted = sorted(photos_with_timestamp, key=lambda p: p.timestamp)
+    # Sort faces by timestamp
+    faces_sorted = sorted(included_faces, key=lambda f: f.timestamp)
 
     # Initialize clusters
     clusters = []
-    current_cluster = [photos_sorted[0]]
+    current_cluster = [faces_sorted[0]]
 
-    for i in range(1, len(photos_sorted)):
-        time_diff = photos_sorted[i].timestamp - photos_sorted[i - 1].timestamp
+    for i in range(1, len(faces_sorted)):
+        time_diff = faces_sorted[i].timestamp - faces_sorted[i - 1].timestamp
         if time_diff <= time_gap:
-            current_cluster.append(photos_sorted[i])
+            current_cluster.append(faces_sorted[i])
         else:
             clusters.append(current_cluster)
-            current_cluster = [photos_sorted[i]]
+            current_cluster = [faces_sorted[i]]
     # Add the last cluster
     clusters.append(current_cluster)
 
     # Provide statistics to the user
     total_clusters = len(clusters)
-    print(f"\nTotal photos included in collage: {total_included_photos}")
-    print(f"Total photos with timestamp: {total_photos_with_timestamp}")
+    print(f"\nTotal faces included in collage: {total_included_faces}")
     print(f"Number of clusters detected: {total_clusters}")
 
     # Determine net additional exclusions
-    photos_to_exclude = []
+    faces_to_exclude = []
     for cluster in clusters:
         if len(cluster) <= 1:
             continue
-        # Find the photo with yaw closest to zero
-        best_photo = None
+        # Find the face with yaw closest to zero
+        best_face = None
         min_abs_yaw = None
-        for photo in cluster:
-            if photo.head_pose_estimation_status == 'success' and photo.yaw is not None:
-                abs_yaw = abs(photo.yaw)
+        for face in cluster:
+            if face.head_pose_estimation_status == 'success' and face.yaw is not None:
+                abs_yaw = abs(face.yaw)
                 if min_abs_yaw is None or abs_yaw < min_abs_yaw:
                     min_abs_yaw = abs_yaw
-                    best_photo = photo
+                    best_face = face
 
-        if best_photo is None:
-            # If no photo has yaw information, select the first one
-            best_photo = cluster[0]
+        if best_face is None:
+            # If no face has yaw information, select the first one
+            best_face = cluster[0]
 
-        # Exclude other photos in the cluster
-        for photo in cluster:
-            if photo != best_photo and photo.include_in_collage:
-                photos_to_exclude.append(photo)
+        # Exclude other faces in the cluster
+        for face in cluster:
+            if face != best_face and face.include_in_collage:
+                faces_to_exclude.append(face)
 
-    net_additional_exclusions = len(photos_to_exclude)
-    percentage_excluded = (net_additional_exclusions / total_included_photos) * 100 if total_included_photos > 0 else 0
-    print(f"Total photos to be excluded due to temporal clustering: {net_additional_exclusions} ({percentage_excluded:.2f}%)")
+    net_additional_exclusions = len(faces_to_exclude)
+    percentage_excluded = (net_additional_exclusions / total_included_faces) * 100 if total_included_faces > 0 else 0
+    print(f"Total faces to be excluded due to temporal clustering: {net_additional_exclusions} ({percentage_excluded:.2f}%)")
 
     # Ask user for confirmation
     confirmation = input("Do you want to apply this temporal clustering filter? (yes/no): ")
     if confirmation.lower() == 'yes':
-        for photo in photos_to_exclude:
-            photo.include_in_collage = False
+        for face in faces_to_exclude:
+            face.include_in_collage = False
             reason = f"Excluded due to temporal clustering"
-            if photo.exclusion_reason:
-                photo.exclusion_reason += f'; {reason}'
+            if face.exclusion_reason:
+                face.exclusion_reason += f'; {reason}'
             else:
-                photo.exclusion_reason = reason
-        print(f"Excluded {net_additional_exclusions} photos based on temporal clustering.")
+                face.exclusion_reason = reason
+        print(f"Excluded {net_additional_exclusions} faces based on temporal clustering.")
     else:
         print("No changes made.")
 
+def filter_faces_by_classifier(photos):
+    total_faces = sum(len(photo.face_list) for photo in photos if photo.face_list)
+    classified_faces = []
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                if face.classification_status == 'success' and face.classification_label == 1:
+                    classified_faces.append(face)
+
+    total_classified = len(classified_faces)
+    print(f"\nTotal faces classified as positive: {total_classified} out of {total_faces}")
+
+    # Calculate confidence percentiles
+    confidences = [face.classification_confidence for face in classified_faces if face.classification_confidence is not None]
+    if not confidences:
+        print("No confidence scores available.")
+        return
+
+    percentiles = np.percentile(confidences, [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+
+    print("\nConfidence percentiles for positive classifications:")
+    for i, percentile in enumerate([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]):
+        print(f"{percentile}th percentile: {percentiles[i]:.4f}")
+
+    try:
+        min_input = input("Enter minimum confidence value to include (or press Enter to skip): ")
+        min_value = float(min_input) if min_input.strip() != '' else 0.0
+    except ValueError:
+        print("Invalid input. Please enter numeric values.")
+        return
+
+    # Determine faces to include based on confidence threshold
+    faces_to_include = [face for face in classified_faces if face.classification_confidence >= min_value]
+
+    # Update inclusion status
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                if face in faces_to_include:
+                    face.include_in_collage = True
+                    face.exclusion_reason = ''
+                else:
+                    face.include_in_collage = False
+                    face.exclusion_reason = 'Classifier confidence below threshold'
+
+    included_count = len(faces_to_include)
+    print(f"\nTotal faces included after filtering: {included_count}")
 
 def update_status_based_on_file_existence(photos):
     processed_images = set(os.listdir(PROCESSED_IMAGES_DIR))
     excluded_images = set(os.listdir(EXCLUDED_IMAGES_DIR))
     total_changes = 0
-    deleted_photos = 0
-    moved_photos = 0
+    deleted_faces = 0
+    moved_faces = 0
 
-    for photo in tqdm(photos, desc="Updating photo statuses", unit="photo"):
-        processed_filename = f"{photo.id}.jpg"
-        if processed_filename not in processed_images:
-            if processed_filename in excluded_images:
-                if photo.include_in_collage:
-                    photo.include_in_collage = False
-                    if photo.exclusion_reason:
-                        photo.exclusion_reason += '; Manually excluded'
+    for photo in tqdm(photos, desc="Updating face statuses", unit="photo"):
+        if photo.face_list:
+            for face in photo.face_list:
+                processed_filename = os.path.basename(face.image_path)
+                if processed_filename not in processed_images:
+                    if processed_filename in excluded_images:
+                        if face.include_in_collage:
+                            face.include_in_collage = False
+                            if face.exclusion_reason:
+                                face.exclusion_reason += '; Manually excluded'
+                            else:
+                                face.exclusion_reason = 'Manually excluded'
+                            moved_faces += 1
+                            total_changes += 1
                     else:
-                        photo.exclusion_reason = 'Manually excluded'
-                    moved_photos += 1
-                    total_changes += 1
-            else:
-                if photo.include_in_collage:
-                    photo.include_in_collage = False
-                    if photo.exclusion_reason:
-                        photo.exclusion_reason += '; Image file missing'
-                    else:
-                        photo.exclusion_reason = 'Image file missing'
-                    deleted_photos += 1
-                    total_changes += 1
+                        if face.include_in_collage:
+                            face.include_in_collage = False
+                            if face.exclusion_reason:
+                                face.exclusion_reason += '; Image file missing'
+                            else:
+                                face.exclusion_reason = 'Image file missing'
+                            deleted_faces += 1
+                            total_changes += 1
 
     print(f"Updates applied: {total_changes}")
-    print(f"Photos moved to excluded_images: {moved_photos}")
-    print(f"Photos deleted: {deleted_photos}")
+    print(f"Faces moved to excluded_images: {moved_faces}")
+    print(f"Faces deleted: {deleted_faces}")
 
     if total_changes == 0:
-        print("No net changes to eligible collage photos.")
+        print("No net changes to eligible collage faces.")
 
 def reset_filters(photos):
-    confirmation = input("Are you sure you want to reset all filters and include all photos back into the collage? (yes/no): ")
+    confirmation = input("Are you sure you want to reset all filters and include all faces back into the collage? (yes/no): ")
     if confirmation.lower() == 'yes':
         for photo in photos:
-            photo.include_in_collage = True
-            photo.exclusion_reason = ''
-        print("All filters have been reset. All photos are now included in the collage.")
+            if photo.face_list:
+                for face in photo.face_list:
+                    face.include_in_collage = True
+                    face.exclusion_reason = ''
+        print("All filters have been reset. All faces are now included in the collage.")
     else:
         print("Reset filters canceled.")
 
-def sample_photos_temporally(photos, total_needed):
+def sample_photos_temporally(faces, total_needed):
     """
-    Selects a subset of photos maintaining temporal spacing as much as possible.
+    Selects a subset of faces maintaining temporal spacing as much as possible.
     """
     from datetime import datetime
 
-    # Sort photos by timestamp
-    photos = sorted(photos, key=lambda p: p.timestamp or datetime.now())
+    # Sort faces by timestamp
+    faces = sorted(faces, key=lambda f: f.timestamp or datetime.now())
 
-    # If total_needed >= len(photos), return all photos
-    if total_needed >= len(photos):
-        return photos
+    # If total_needed >= len(faces), return all faces
+    if total_needed >= len(faces):
+        return faces
 
     # Extract timestamps as floats for computation
-    timestamps = [p.timestamp.timestamp() for p in photos]
+    timestamps = [f.timestamp.timestamp() for f in faces]
     min_timestamp = timestamps[0]
     max_timestamp = timestamps[-1]
 
     selected_indices = set()
-    selected_photos = []
+    selected_faces = []
 
     for i in range(total_needed):
         # Compute the target timestamp using percentiles
         if total_needed > 1:
             percentile = i / (total_needed - 1)  # Percentile between 0 and 1
         else:
-            percentile = 0.5  # If only one photo is needed, pick the middle one
+            percentile = 0.5  # If only one face is needed, pick the middle one
         target_timestamp = min_timestamp + percentile * (max_timestamp - min_timestamp)
 
-        # Find the closest photo to the target timestamp that's not already selected
+        # Find the closest face to the target timestamp that's not already selected
         closest_index = min(
             (j for j in range(len(timestamps)) if j not in selected_indices),
             key=lambda j: abs(timestamps[j] - target_timestamp)
         )
         selected_indices.add(closest_index)
-        selected_photos.append(photos[closest_index])
+        selected_faces.append(faces[closest_index])
 
-    # Sort the selected photos by timestamp (optional)
-    selected_photos.sort(key=lambda p: p.timestamp)
+    # Sort the selected faces by timestamp (optional)
+    selected_faces.sort(key=lambda f: f.timestamp)
 
-    return selected_photos
+    return selected_faces
