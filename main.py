@@ -68,13 +68,14 @@ def main_menu():
     options = [
         "1. Index Photos in Album",
         "2. Download and Process Photos",
-        "3. Train Custom Classifier",
-        "4. Classify Faces",
-        "5. Filter and Manage Photos",
-        "6. Generate Collage",
-        "7. View Progress",
-        "8. Reset Project",
-        "9. Exit"
+        "3. Perform Head Pose and Facial Features Estimation",
+        "4. Train Custom Classifier",
+        "5. Classify Faces",
+        "6. Filter and Manage Photos",
+        "7. Generate Collage",
+        "8. View Progress",
+        "9. Reset Project",
+        "10. Exit"
     ]
     terminal_menu = TerminalMenu(options, title="Image Collage Project - Main Menu")
     menu_entry_index = terminal_menu.show()
@@ -317,6 +318,61 @@ def download_and_process_photos(photos):
             update_index_csv(photos)
             continue  # Skip to next photo
 
+def perform_head_pose_and_facial_features_estimation(photos):
+    """
+    Perform head pose estimation and extract facial features on processed faces.
+    """
+    total_faces = sum(len(photo.face_list) for photo in photos if photo.face_list)
+    logging.info(f"Total faces to process: {total_faces}")
+
+    faces_to_process = []
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                if face.head_pose_estimation_status != 'success':
+                    faces_to_process.append(face)
+
+    if not faces_to_process:
+        print("All faces have head pose estimation completed.")
+        return
+
+    from utils.head_pose_and_facial_features import estimate_head_pose_and_facial_features
+
+    for face in tqdm(faces_to_process, desc="Estimating head poses and extracting facial features", unit="face"):
+        try:
+            result = estimate_head_pose_and_facial_features(face.image_path)
+            if result:
+                yaw, pitch, roll, facial_features = result
+                face.yaw = yaw
+                face.pitch = pitch
+                face.roll = roll
+                face.head_pose_estimation_status = 'success'
+                face.head_pose_estimation_error = ''
+                # Update facial features
+                face.left_eye_openness = facial_features['left_eye_openness']
+                face.right_eye_openness = facial_features['right_eye_openness']
+                face.avg_eye_openness = facial_features['avg_eye_openness']
+                face.mouth_openness = facial_features['mouth_openness']
+                face.facial_features_status = 'success'
+            else:
+                face.head_pose_estimation_status = 'failed'
+                face.head_pose_estimation_error = 'Head pose estimation failed'
+                face.facial_features_status = 'failed'
+                logging.warning(f"Failed to estimate head pose for face {face.id}")
+            # Save progress after each face
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos)
+
+        except Exception as e:
+            logging.error(f"Unexpected error processing face {face.id}: {e}")
+            face.head_pose_estimation_status = 'failed'
+            face.head_pose_estimation_error = 'Unexpected error'
+            face.facial_features_status = 'failed'
+            # Save progress and continue to next face
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos)
+            continue  # Skip to next face
+
 def train_custom_classifier(photos):
     """
     Train a custom classifier using the faces in the training directories.
@@ -423,7 +479,7 @@ def reset_project(tracker):
 def filter_and_manage_photos(photos):
     while True:
         options = [
-            "1. Exclude Photos with Failed Processing",
+            "1. Exclude Faces with Failed Processing",
             "2. Filter Faces by Head Pose and Facial Features",
             "3. Filter Faces by Date Range",
             "4. Filter Faces by Temporal Clustering",
@@ -436,7 +492,7 @@ def filter_and_manage_photos(photos):
         menu_entry_index = terminal_menu.show()
 
         if menu_entry_index == 0:
-            # Exclude Photos with Failed Processing
+            # Exclude Faces with Failed Processing
             exclude_failed_processing_photos(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos)
@@ -489,14 +545,31 @@ def generate_collage_menu(photos):
         print("No eligible faces to include in the collage.")
         return
 
-    total_photos = len(eligible_faces)
-    print(f"Total eligible faces: {total_photos}")
+    total_faces = len(eligible_faces)
+    print(f"Total eligible faces: {total_faces}")
 
-    # The rest of the code remains largely the same as before, but uses eligible_faces instead of photos
-    # For brevity, I'll assume the generate_collage function has been updated to handle faces
+    # For simplicity, let's proceed to generate the collage with default options
+    collage_width_px = 4000  # Example value
+    collage_height_px = 4000  # Example value
+    photo_width_px = 200  # Example value
+    photo_height_px = 200  # Example value
+    rows = collage_height_px // photo_height_px
+    cols = collage_width_px // photo_width_px
+    wrap_method = 'lr_down'  # Left to right, top to bottom
 
-    # Ask the user whether they want to specify individual photo size or overall collage size
-    # ... (rest of the function remains the same, adjusted for faces)
+    options = {
+        'collage_width_px': collage_width_px,
+        'collage_height_px': collage_height_px,
+        'photo_width_px': photo_width_px,
+        'photo_height_px': photo_height_px,
+        'rows': rows,
+        'cols': cols,
+        'wrap_method': wrap_method
+    }
+
+    output_path = os.path.join(OUTPUT_DIR, 'final_collage.jpg')
+    generate_collage(eligible_faces, output_path, options)
+    print(f"Collage generated and saved to {output_path}")
 
 def main():
     setup_logging()
@@ -525,6 +598,15 @@ def main():
             tracker.update_stage('Download and Processing Completed')
 
         elif selection == 2:
+            # Perform Head Pose and Facial Features Estimation
+            photos = load_photos(PHOTOS_FILE)
+            if not photos:
+                print("No photos to process. Please index an album first.")
+                continue
+            perform_head_pose_and_facial_features_estimation(photos)
+            tracker.update_stage('Head Pose and Facial Features Estimation Completed')
+
+        elif selection == 3:
             # Train Custom Classifier
             photos = load_photos(PHOTOS_FILE)
             if not photos:
@@ -533,7 +615,7 @@ def main():
             train_custom_classifier(photos)
             tracker.update_stage('Classifier Trained')
 
-        elif selection == 3:
+        elif selection == 4:
             # Classify Faces
             photos = load_photos(PHOTOS_FILE)
             if not photos:
@@ -542,7 +624,7 @@ def main():
             classify_all_faces(photos)
             tracker.update_stage('Faces Classified')
 
-        elif selection == 4:
+        elif selection == 5:
             # Filter and Manage Photos
             photos = load_photos(PHOTOS_FILE)
             if not photos:
@@ -551,7 +633,7 @@ def main():
             filter_and_manage_photos(photos)
             tracker.update_stage('Filtering and Management Completed')
 
-        elif selection == 5:
+        elif selection == 6:
             # Generate Collage
             photos = load_photos(PHOTOS_FILE)
             if not photos:
@@ -560,7 +642,7 @@ def main():
             generate_collage_menu(photos)
             tracker.update_stage('Collage Generated')
 
-        elif selection == 6:
+        elif selection == 7:
             # View Progress
             if os.path.exists(PHOTOS_FILE):
                 photos = load_photos(PHOTOS_FILE)
@@ -569,11 +651,11 @@ def main():
             tracker.display_progress(photos)
             input("\nPress Enter to return to the main menu...")
 
-        elif selection == 7:
+        elif selection == 8:
             # Reset Project
             reset_project(tracker)
 
-        elif selection == 8:
+        elif selection == 9:
             # Exit
             print("Exiting the application. Goodbye!")
             break
