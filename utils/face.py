@@ -1,5 +1,6 @@
 from dataclasses import dataclass, asdict
 from typing import Optional
+from datetime import datetime
 
 @dataclass
 class Face:
@@ -27,10 +28,17 @@ class Face:
     classification_status: str = 'pending'  # 'pending', 'success', 'failed'
     classification_label: Optional[str] = None
     classification_confidence: Optional[float] = None
+    # Timestamp
+    timestamp: Optional[datetime] = None  # Timestamp from the photo
 
     def to_dict(self):
-        return asdict(self)
+        data = asdict(self)
+        if self.timestamp:
+            data['timestamp'] = self.timestamp.isoformat()
+        return data
 
     @staticmethod
     def from_dict(data):
+        if 'timestamp' in data and data['timestamp']:
+            data['timestamp'] = datetime.fromisoformat(data['timestamp'])
         return Face(**data)

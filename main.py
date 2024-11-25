@@ -533,12 +533,14 @@ def filter_and_manage_photos(photos):
             print("Invalid selection. Please try again.")
 
 def generate_collage_menu(photos):
-    # Gather all faces included in the collage
     eligible_faces = []
     for photo in photos:
-        if photo.faces_detected and photo.face_list:
+        if photo.face_list:
             for face in photo.face_list:
                 if face.include_in_collage:
+                    # Assign photo timestamp to face if not already assigned
+                    if not face.timestamp:
+                        face.timestamp = photo.timestamp
                     eligible_faces.append(face)
 
     if not eligible_faces:
@@ -548,28 +550,292 @@ def generate_collage_menu(photos):
     total_faces = len(eligible_faces)
     print(f"Total eligible faces: {total_faces}")
 
-    # For simplicity, let's proceed to generate the collage with default options
-    collage_width_px = 4000  # Example value
-    collage_height_px = 4000  # Example value
-    photo_width_px = 200  # Example value
-    photo_height_px = 200  # Example value
-    rows = collage_height_px // photo_height_px
-    cols = collage_width_px // photo_width_px
-    wrap_method = 'lr_down'  # Left to right, top to bottom
+    # Ask the user whether they want to specify individual face image size or overall collage size
+    options = [
+        "1. Specify individual face image size",
+        "2. Specify overall collage size",
+        "3. Cancel and return to main menu"
+    ]
+    terminal_menu = TerminalMenu(options, title="Collage Configuration")
+    menu_entry_index = terminal_menu.show()
 
-    options = {
+    if menu_entry_index == 2 or menu_entry_index is None:
+        return
+
+    dpi_default = DEFAULT_DPI
+    print(f"Default DPI is {dpi_default}.")
+    dpi_input = input(f"Enter desired DPI (dots per inch) [default: {dpi_default}]: ")
+    dpi = int(dpi_input) if dpi_input.strip() else dpi_default
+
+    if menu_entry_index == 0:
+        # User wants to specify individual face image size
+        # Present standard sizes or allow custom
+        standard_face_sizes = ["1x1", "2x2", "3x3", "4x4", "5x5"]
+        options_face_size = standard_face_sizes + ["Custom size"]
+        terminal_menu = TerminalMenu(options_face_size, title="Select Individual Face Image Size (in inches)")
+        size_index = terminal_menu.show()
+
+        if size_index == len(options_face_size) - 1 or size_index is None:
+            # Custom size
+            width_input = input("Enter custom face image width (in inches): ")
+            height_input = input("Enter custom face image height (in inches): ")
+            try:
+                face_width_in = float(width_input)
+                face_height_in = float(height_input)
+            except ValueError:
+                print("Invalid input. Please enter numeric values.")
+                return
+        else:
+            size_str = standard_face_sizes[size_index]
+            face_width_in, face_height_in = map(float, size_str.split('x'))
+
+        # Now, suggest standard collage sizes that fit perfectly with the face image size
+        standard_print_sizes = [
+            "4x6", "5x7", "8x10", "11x14", "12x18", "16x20", "20x30", "4x4", "8x8", "12x12", "12x36"
+        ]
+        possible_collage_options = []
+        for size_str in standard_print_sizes:
+            collage_width_in, collage_height_in = map(float, size_str.split('x'))
+            for orientation in ['portrait', 'landscape']:
+                cw_in, ch_in = collage_width_in, collage_height_in  # Copy original values
+                if orientation == 'portrait' and cw_in > ch_in:
+                    cw_in, ch_in = ch_in, cw_in
+                elif orientation == 'landscape' and cw_in < ch_in:
+                    cw_in, ch_in = ch_in, cw_in
+                # Check if the face image size fits perfectly into the collage size
+                cols = cw_in / face_width_in
+                rows = ch_in / face_height_in
+                if cols.is_integer() and rows.is_integer():
+                    cols = int(cols)
+                    rows = int(rows)
+                    total_cells = rows * cols
+                    if total_cells <= total_faces:
+                        possible_collage_options.append((size_str, orientation, rows, cols, cw_in, ch_in))
+        if not possible_collage_options:
+            print("No standard collage sizes fit your face image size and number of faces.")
+            # Optionally, allow user to enter custom collage size
+            custom_size_input = input("Do you want to enter a custom collage size? (yes/no): ")
+            if custom_size_input.lower() == 'yes':
+                width_input = input("Enter custom collage width (in inches): ")
+                height_input = input("Enter custom collage height (in inches): ")
+                try:
+                    collage_width_in = float(width_input)
+                    collage_height_in = float(height_input)
+                except ValueError:
+                    print("Invalid input. Please enter numeric values.")
+                    return
+                # Check if the face image size fits perfectly into the collage size
+                cols = collage_width_in / face_width_in
+                rows = collage_height_in / face_height_in
+                if cols.is_integer() and rows.is_integer():
+                    cols = int(cols)
+                    rows = int(rows)
+                    total_cells = rows * cols
+                    if total_cells <= total_faces:
+                        # Proceed with this configuration
+                        orientation = 'custom'
+                    else:
+                        print("Not enough faces to fill this collage size.")
+                        return
+                else:
+                    print("Face image size does not fit perfectly into the collage size.")
+                    return
+            else:
+                return
+        else:
+            print("\nPossible collage sizes based on your face image size:")
+            options_collage = []
+            for i, (size_str, orientation, rows, cols, cw_in, ch_in) in enumerate(possible_collage_options):
+                options_collage.append(f"{i+1}. {size_str} ({orientation}), {rows} rows x {cols} columns")
+            terminal_menu = TerminalMenu(options_collage, title="Select a Collage Size Option")
+            selection_index = terminal_menu.show()
+            if selection_index is None:
+                return
+            size_str, orientation, rows, cols, collage_width_in, collage_height_in = possible_collage_options[selection_index]
+
+        # Now, proceed with the selected collage configuration
+
+    elif menu_entry_index == 1:
+        # User wants to specify overall collage size
+        # Present standard print sizes or allow custom
+        standard_print_sizes = [
+            "4x6", "5x7", "8x10", "11x14", "12x18", "16x20", "20x30", "4x4", "8x8", "12x12", "12x36"
+        ]
+        options_print_size = standard_print_sizes + ["Custom size"]
+        terminal_menu = TerminalMenu(options_print_size, title="Select Overall Collage Size (in inches)")
+        size_index = terminal_menu.show()
+
+        if size_index == len(options_print_size) - 1 or size_index is None:
+            # Custom size
+            width_input = input("Enter custom collage width (in inches): ")
+            height_input = input("Enter custom collage height (in inches): ")
+            try:
+                collage_width_in = float(width_input)
+                collage_height_in = float(height_input)
+            except ValueError:
+                print("Invalid input. Please enter numeric values.")
+                return
+        else:
+            size_str = options_print_size[size_index]
+            collage_width_in, collage_height_in = map(float, size_str.split('x'))
+
+        # Ask for orientation if width != height
+        if collage_width_in != collage_height_in:
+            options_orientation = ["1. Portrait", "2. Landscape"]
+            terminal_menu = TerminalMenu(options_orientation, title="Select Collage Orientation")
+            orientation_index = terminal_menu.show()
+
+            if orientation_index == 0:
+                # Portrait
+                if collage_width_in > collage_height_in:
+                    collage_width_in, collage_height_in = collage_height_in, collage_width_in
+            elif orientation_index == 1:
+                # Landscape
+                if collage_width_in < collage_height_in:
+                    collage_width_in, collage_height_in = collage_height_in, collage_width_in
+
+        # Now, we need to calculate possible face image sizes and grid dimensions
+        # Ask user to input desired number of rows or columns, or individual face image size
+        options_grid = [
+            "1. Specify individual face image size",
+            "2. Specify number of rows",
+            "3. Specify number of columns",
+            "4. Cancel and return to main menu"
+        ]
+        terminal_menu = TerminalMenu(options_grid, title="Specify Grid Configuration")
+        grid_config_index = terminal_menu.show()
+
+        if grid_config_index == 3 or grid_config_index is None:
+            return
+
+        if grid_config_index == 0:
+            # Specify individual face image size
+            width_input = input("Enter individual face image width (in inches): ")
+            height_input = input("Enter individual face image height (in inches): ")
+            try:
+                face_width_in = float(width_input)
+                face_height_in = float(height_input)
+            except ValueError:
+                print("Invalid input. Please enter numeric values.")
+                return
+            cols = collage_width_in / face_width_in
+            rows = collage_height_in / face_height_in
+            if not cols.is_integer() or not rows.is_integer():
+                print("Face image size does not fit perfectly into the collage size.")
+                return
+            cols = int(cols)
+            rows = int(rows)
+            total_cells = rows * cols
+            if total_cells > total_faces:
+                print(f"Not enough faces to fill the grid ({total_cells} cells needed, but only {total_faces} faces available).")
+                return
+        elif grid_config_index == 1:
+            # Specify number of rows
+            rows_input = input("Enter number of rows: ")
+            try:
+                rows = int(rows_input)
+            except ValueError:
+                print("Invalid input. Please enter an integer.")
+                return
+            face_height_in = collage_height_in / rows
+            face_width_in = face_height_in  # Assuming square images
+            cols = collage_width_in / face_width_in
+            if not cols.is_integer():
+                print("The number of columns is not an integer with the given number of rows and collage dimensions.")
+                return
+            cols = int(cols)
+            total_cells = rows * cols
+            if total_cells > total_faces:
+                print(f"Not enough faces to fill the grid ({total_cells} cells needed, but only {total_faces} faces available).")
+                return
+        elif grid_config_index == 2:
+            # Specify number of columns
+            cols_input = input("Enter number of columns: ")
+            try:
+                cols = int(cols_input)
+            except ValueError:
+                print("Invalid input. Please enter an integer.")
+                return
+            face_width_in = collage_width_in / cols
+            face_height_in = face_width_in  # Assuming square images
+            rows = collage_height_in / face_height_in
+            if not rows.is_integer():
+                print("The number of rows is not an integer with the given number of columns and collage dimensions.")
+                return
+            rows = int(rows)
+            total_cells = rows * cols
+            if total_cells > total_faces:
+                print(f"Not enough faces to fill the grid ({total_cells} cells needed, but only {total_faces} faces available).")
+                return
+
+    else:
+        return
+
+    # Calculate total number of faces needed
+    total_faces_needed = rows * cols
+
+    if total_faces_needed > total_faces:
+        print(f"\nYou need {total_faces_needed} faces to fill the grid, but only have {total_faces} eligible faces.")
+        print("Please adjust your settings or include more faces.")
+        return
+    elif total_faces_needed < total_faces:
+        print(f"\nThe grid will use {total_faces_needed} faces, but you have {total_faces} eligible faces.")
+        print("Excess faces will be sampled to fit the grid.")
+        # Implement sampling strategy to select faces
+        selected_faces = sample_photos_temporally(eligible_faces, total_faces_needed)
+    else:
+        selected_faces = eligible_faces
+
+    # Ask for wrap-around method
+    options_wrap = [
+        "1. Left to right, then down (like reading a book)",
+        "2. Left to right, then down, alternating directions (snaking)",
+        "3. Top to bottom, then right",
+        "4. Top to bottom, then right, alternating directions (snaking)",
+        "5. Cancel and return to main menu"
+    ]
+    terminal_menu = TerminalMenu(options_wrap, title="Select Wrap-around Method")
+    wrap_method_index = terminal_menu.show()
+
+    if wrap_method_index == 4 or wrap_method_index is None:
+        return
+
+    wrap_methods = {
+        0: 'lr_down',
+        1: 'lr_down_snake',
+        2: 'tb_right',
+        3: 'tb_right_snake'
+    }
+
+    wrap_method = wrap_methods.get(wrap_method_index)
+
+    # Now, calculate the pixel dimensions
+    collage_width_px = int(collage_width_in * dpi)
+    collage_height_px = int(collage_height_in * dpi)
+    face_width_px = int(face_width_in * dpi)
+    face_height_px = int(face_height_in * dpi)
+
+    # Ask user for output filename
+    output_filename = input("Enter a name for the output collage file (without extension): ").strip()
+    if not output_filename:
+        print("Filename cannot be empty.")
+        return
+    output_path = os.path.join(OUTPUT_DIR, f"{output_filename}.jpg")
+
+    # Prepare options to pass to generate_collage
+    collage_options = {
         'collage_width_px': collage_width_px,
         'collage_height_px': collage_height_px,
-        'photo_width_px': photo_width_px,
-        'photo_height_px': photo_height_px,
+        'photo_width_px': face_width_px,
+        'photo_height_px': face_height_px,
         'rows': rows,
         'cols': cols,
         'wrap_method': wrap_method
     }
 
-    output_path = os.path.join(OUTPUT_DIR, 'final_collage.jpg')
-    generate_collage(eligible_faces, output_path, options)
-    print(f"Collage generated and saved to {output_path}")
+    # Call generate_collage
+    generate_collage(selected_faces, output_path, collage_options)
+    print(f"\nCollage generated and saved to {output_path}")
 
 def main():
     setup_logging()

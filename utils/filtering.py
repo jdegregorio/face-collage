@@ -423,15 +423,22 @@ def sample_photos_temporally(faces, total_needed):
     """
     from datetime import datetime
 
+    # Filter faces with valid timestamps
+    faces_with_timestamp = [face for face in faces if face.timestamp is not None]
+
+    if not faces_with_timestamp:
+        print("No faces have timestamp information. Cannot sample temporally.")
+        return faces[:total_needed]  # Return first N faces
+
     # Sort faces by timestamp
-    faces = sorted(faces, key=lambda f: f.timestamp or datetime.now())
+    faces_sorted = sorted(faces_with_timestamp, key=lambda f: f.timestamp)
 
     # If total_needed >= len(faces), return all faces
-    if total_needed >= len(faces):
-        return faces
+    if total_needed >= len(faces_sorted):
+        return faces_sorted
 
     # Extract timestamps as floats for computation
-    timestamps = [f.timestamp.timestamp() for f in faces]
+    timestamps = [f.timestamp.timestamp() for f in faces_sorted]
     min_timestamp = timestamps[0]
     max_timestamp = timestamps[-1]
 
@@ -452,7 +459,7 @@ def sample_photos_temporally(faces, total_needed):
             key=lambda j: abs(timestamps[j] - target_timestamp)
         )
         selected_indices.add(closest_index)
-        selected_faces.append(faces[closest_index])
+        selected_faces.append(faces_sorted[closest_index])
 
     # Sort the selected faces by timestamp (optional)
     selected_faces.sort(key=lambda f: f.timestamp)
