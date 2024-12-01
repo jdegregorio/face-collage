@@ -23,6 +23,7 @@ from utils.filtering import (
     filter_photos_by_features,
     filter_photos_by_date,
     filter_photos_by_temporal_clustering,
+    filter_faces_by_alignment_and_scaling,
     update_status_based_on_file_existence,
     reset_filters,
     sample_photos_temporally,
@@ -354,10 +355,17 @@ def perform_head_pose_and_facial_features_estimation(photos):
                 face.avg_eye_openness = facial_features['avg_eye_openness']
                 face.mouth_openness = facial_features['mouth_openness']
                 face.facial_features_status = 'success'
+                # Update alignment and scaling metrics
+                face.rotation_angle = facial_features.get('rotation_angle', 0)
+                face.scaling_factor = facial_features.get('scaling_factor', 1)
+                face.centering_offsets = facial_features.get('centering_offsets', (0, 0))
+                face.alignment_status = 'success'
+                face.actual_expansion = facial_features.get('actual_expansion', 0)
             else:
                 face.head_pose_estimation_status = 'failed'
                 face.head_pose_estimation_error = 'Head pose estimation failed'
                 face.facial_features_status = 'failed'
+                face.alignment_status = 'failed'
                 logging.warning(f"Failed to estimate head pose for face {face.id}")
             # Save progress after each face
             save_photos(photos, PHOTOS_FILE)
@@ -368,6 +376,7 @@ def perform_head_pose_and_facial_features_estimation(photos):
             face.head_pose_estimation_status = 'failed'
             face.head_pose_estimation_error = 'Unexpected error'
             face.facial_features_status = 'failed'
+            face.alignment_status = 'failed'
             # Save progress and continue to next face
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos)
@@ -483,10 +492,11 @@ def filter_and_manage_photos(photos):
             "2. Filter Faces by Head Pose and Facial Features",
             "3. Filter Faces by Date Range",
             "4. Filter Faces by Temporal Clustering",
-            "5. Filter Faces by Classifier",
-            "6. Update Status Based on File Existence",
-            "7. Reset All Filters",
-            "8. Return to Main Menu"
+            "5. Filter Faces by Alignment and Scaling",
+            "6. Filter Faces by Classifier",
+            "7. Update Status Based on File Existence",
+            "8. Reset All Filters",
+            "9. Return to Main Menu"
         ]
         terminal_menu = TerminalMenu(options, title="Filter and Manage Photos")
         menu_entry_index = terminal_menu.show()
@@ -512,21 +522,26 @@ def filter_and_manage_photos(photos):
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos)
         elif menu_entry_index == 4:
+            # Filter Faces by Alignment and Scaling
+            filter_faces_by_alignment_and_scaling(photos)
+            save_photos(photos, PHOTOS_FILE)
+            update_index_csv(photos)
+        elif menu_entry_index == 5:
             # Filter Faces by Classifier
             filter_faces_by_classifier(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos)
-        elif menu_entry_index == 5:
+        elif menu_entry_index == 6:
             # Update Status Based on File Existence
             update_status_based_on_file_existence(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos)
-        elif menu_entry_index == 6:
+        elif menu_entry_index == 7:
             # Reset All Filters
             reset_filters(photos)
             save_photos(photos, PHOTOS_FILE)
             update_index_csv(photos)
-        elif menu_entry_index == 7:
+        elif menu_entry_index == 8:
             # Return to Main Menu
             break
         else:

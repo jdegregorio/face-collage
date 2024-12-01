@@ -13,7 +13,7 @@ def exclude_failed_processing_photos(photos):
     for photo in photos:
         if photo.face_list:
             for face in photo.face_list:
-                if face.head_pose_estimation_status != 'success' or face.facial_features_status != 'success':
+                if face.head_pose_estimation_status != 'success' or face.facial_features_status != 'success' or face.alignment_status != 'success':
                     failed_faces.append(face)
     failed_count = len(failed_faces)
     failed_percentage = (failed_count / total_faces) * 100 if total_faces > 0 else 0
@@ -41,7 +41,10 @@ def filter_photos_by_features(photos):
         'pitch': [],
         'avg_eye_openness': [],
         'mouth_openness': [],
-        'actual_expansion': []
+        'actual_expansion': [],
+        'rotation_angle': [],
+        'scaling_factor': [],
+        'centering_offsets': []
     }
     for photo in photos:
         if photo.face_list:
@@ -53,11 +56,22 @@ def filter_photos_by_features(photos):
                     features['mouth_openness'].append(face.mouth_openness)
                     if face.actual_expansion is not None:
                         features['actual_expansion'].append(face.actual_expansion)
+                    if face.rotation_angle is not None:
+                        features['rotation_angle'].append(face.rotation_angle)
+                    if face.scaling_factor is not None:
+                        features['scaling_factor'].append(face.scaling_factor)
+                    if face.centering_offsets is not None:
+                        features['centering_offsets'].append(face.centering_offsets)
 
     # Calculate percentiles
     percentiles = {}
     for feature, values in features.items():
-        if values:
+        if feature == 'centering_offsets' and values:
+            x_offsets = [offset[0] for offset in values]
+            y_offsets = [offset[1] for offset in values]
+            percentiles['centering_offsets_x'] = np.percentile(x_offsets, [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+            percentiles['centering_offsets_y'] = np.percentile(y_offsets, [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+        elif values:
             percentiles[feature] = np.percentile(values, [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
         else:
             percentiles[feature] = []
@@ -133,6 +147,103 @@ def filter_photos_by_features(photos):
                 print("No changes made.")
         else:
             print("Invalid selection. Please try again.")
+
+def filter_faces_by_alignment_and_scaling(photos):
+    # Collect alignment and scaling data
+    features = {
+        'rotation_angle': [],
+        'scaling_factor': [],
+        'actual_expansion': []
+    }
+    for photo in photos:
+        if photo.face_list:
+            for face in photo.face_list:
+                if face.alignment_status == 'success':
+                    if face.rotation_angle is not None:
+                        features['rotation_angle'].append(face.rotation_angle)
+                    if face.scaling_factor is not None:
+                        features['scaling_factor'].append(face.scaling_factor)
+                    if face.actual_expansion is not None:
+                        features['actual_expansion'].append(face.actual_expansion)
+
+    # Calculate percentiles
+    percentiles = {}
+    for feature, values in features.items():
+        if values:
+            percentiles[feature] = np.percentile(values, [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+        else:
+            percentiles[feature] = []
+
+    # Feature selection menu
+    options = [
+        "1. Rotation Angle",
+        "2. Scaling Factor",
+        "3. Actual Expansion",
+        "4. Return to Previous Menu"
+    ]
+    terminal_menu = TerminalMenu(options, title="Select Alignment or Scaling Feature to Filter By")
+    while True:
+        menu_entry_index = terminal_menu.show()
+        if menu_entry_index == 3 or menu_entry_index is None:
+            break
+        elif menu_entry_index in [0, 1, 2]:
+            feature_names = ['rotation_angle', 'scaling_factor', 'actual_expansion']
+            feature = feature_names[menu_entry_index]
+            if len(percentiles[feature]) == 0:
+                print(f"No data available for {feature}.")
+                continue
+            print(f"\nPercentiles for {feature} (calculated from all faces):")
+            for i, percentile in enumerate([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]):
+                print(f"{percentile}th percentile: {percentiles[feature][i]:.4f}")
+            try:
+                min_input = input(f"Enter minimum value for {feature} (or press Enter to skip): ")
+                min_value = float(min_input) if min_input.strip() != '' else -np.inf
+                max_input = input(f"Enter maximum value for {feature} (or press Enter to skip): ")
+                max_value = float(max_input) if max_input.strip() != '' else np.inf
+            except ValueError:
+                print("Invalid input. Please enter numeric values.")
+                continue
+
+            # Determine how many faces meet the criteria
+            faces_meeting_criteria = []
+            for photo in photos:
+                if photo.face_list:
+                    for face in photo.face_list:
+                        if face.alignment_status == 'success' and getattr(face, feature) is not None and min_value <= getattr(face, feature) <= max_value:
+                            faces_meeting_criteria.append(face)
+            total_meeting_criteria = len(faces_meeting_criteria)
+            print(f"\nTotal faces meeting the criteria for {feature}: {total_meeting_criteria}")
+
+            # Determine net additional exclusions
+            currently_included = []
+            for photo in photos:
+                if photo.face_list:
+                    for face in photo.face_list:
+                        if face.include_in_collage:
+                            currently_included.append(face)
+            faces_to_exclude = []
+            for face in currently_included:
+                if face.alignment_status == 'success' and getattr(face, feature) is not None and not (min_value <= getattr(face, feature) <= max_value):
+                    faces_to_exclude.append(face)
+            net_additional_exclusions = len(faces_to_exclude)
+            print(f"Net additional faces to be excluded: {net_additional_exclusions}")
+
+            confirmation = input("Do you want to apply this filter? (yes/no): ")
+            if confirmation.lower() == 'yes':
+                # Apply filtering
+                for face in faces_to_exclude:
+                    face.include_in_collage = False
+                    reason = f"{feature} not in range"
+                    if face.exclusion_reason:
+                        face.exclusion_reason += f'; {reason}'
+                    else:
+                        face.exclusion_reason = reason
+                print(f"Excluded {net_additional_exclusions} faces based on {feature} filtering.")
+            else:
+                print("No changes made.")
+        else:
+            print("Invalid selection. Please try again.")
+
 
 def filter_photos_by_date(photos):
     # Collect floor dates from all faces

@@ -13,6 +13,7 @@ class Face:
     head_pose_estimation_status: str = 'pending'  # 'pending', 'success', 'failed'
     head_pose_estimation_error: str = ''
     facial_features_status: str = 'pending'  # 'pending', 'success', 'failed'
+    alignment_status: str = 'pending'  # 'pending', 'success', 'failed'
     # Inclusion status
     include_in_collage: bool = True  # Whether to include in the collage
     exclusion_reason: Optional[str] = ''
@@ -24,9 +25,12 @@ class Face:
     right_eye_openness: Optional[float] = None
     avg_eye_openness: Optional[float] = None
     mouth_openness: Optional[float] = None
+    rotation_angle: Optional[float] = None
+    scaling_factor: Optional[float] = None
+    centering_offsets: Optional[tuple] = None
     # Classification
     classification_status: str = 'pending'  # 'pending', 'success', 'failed'
-    classification_label: Optional[str] = None
+    classification_label: Optional[int] = None
     classification_confidence: Optional[float] = None
     # Timestamp
     timestamp: Optional[datetime] = None  # Timestamp from the photo

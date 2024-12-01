@@ -7,11 +7,9 @@ SCOPES = ['https://www.googleapis.com/auth/photoslibrary.readonly']
 # Image processing settings
 MIN_FACE_SIZE = 100          # Minimum face size in pixels to consider
 IMAGE_SIZE = 256             # Size to which each face image will be resized (pixels)
+DESIRED_EXPANSION = 2      # Desired expansion percentage (e.g., 0.4 for 40%)
 MAX_YAW = 45.0               # Maximum yaw angle to include (degrees)
 MAX_PITCH = 45.0             # Maximum pitch angle to include (degrees)
-
-# Bounding box expansion settings
-INITIAL_BBOX_EXPANSION = 2   # Percentage to expand the initial bounding box (e.g., 0.2 for 20%)
 
 # Collage settings
 DEFAULT_DPI = 300            # Default DPI for collage generation

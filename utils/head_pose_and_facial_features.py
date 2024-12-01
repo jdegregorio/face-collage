@@ -100,6 +100,18 @@ def estimate_head_pose_and_facial_features(image_path):
 
         facial_features['mouth_openness'] = mouth_openness
 
+        # Rotation angle (assumed to be zero since image was already aligned)
+        facial_features['rotation_angle'] = 0.0
+
+        # Scaling factor (assumed to be 1 since image was resized)
+        facial_features['scaling_factor'] = 1.0
+
+        # Centering offsets (assumed to be zero)
+        facial_features['centering_offsets'] = (0, 0)
+
+        # Actual expansion (if any)
+        facial_features['actual_expansion'] = 0.0
+
         return yaw, pitch, roll, facial_features
 
 def extract_face_embedding(image_path):
