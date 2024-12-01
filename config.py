@@ -7,9 +7,12 @@ SCOPES = ['https://www.googleapis.com/auth/photoslibrary.readonly']
 # Image processing settings
 MIN_FACE_SIZE = 100          # Minimum face size in pixels to consider
 IMAGE_SIZE = 256             # Size to which each face image will be resized (pixels)
-DESIRED_FACE_SIZE_RATIO = 3  # Desired face size relative to inter-eye distance
+DESIRED_FACE_SIZE_RATIO = 4.5  # Desired face size relative to inter-eye distance
 MAX_YAW = 45.0               # Maximum yaw angle to include (degrees)
 MAX_PITCH = 45.0             # Maximum pitch angle to include (degrees)
+
+# New setting for yaw adjustment
+APPLY_YAW_CORRECTION = True   # Set to True to apply yaw correction to scaling
 
 # Collage settings
 DEFAULT_DPI = 300            # Default DPI for collage generation
